@@ -1,6 +1,6 @@
 # ledger handbook
 
-Everything about running ledger and building on it, in one place. New to double-entry bookkeeping? Start with the [beginner guide](guide.md). Just want the endpoints? Open the [interactive API reference](https://otyang.github.io/ledger/api.html).
+Everything about running ledger and building on it, in one place. New to double-entry bookkeeping? Start with the [beginner guide](guide.md). Just want the endpoints? Open the [interactive API reference](https://otyang.github.io/ledger/docs/api.html).
 
 - **Correct by construction.** Every transaction balances, entries are immutable, and balances can't drift: the database enforces these rules itself, independent of the Go code.
 - **Exact amounts.** Whole numbers of a currency's smallest unit, up to 78 digits, so fiat cents and 18-decimal crypto tokens (wei) both fit. Nothing is ever rounded.
@@ -19,11 +19,11 @@ Everything about running ledger and building on it, in one place. New to double-
 | Page | Read it to |
 |---|---|
 | [Beginner guide](guide.md) | Understand double-entry bookkeeping and this ledger through a worked example: top-up, purchase with a fee, refund, card hold, withdrawal |
-| [Interactive API reference](https://otyang.github.io/ledger/api.html) | Browse every endpoint, its schemas and code samples, generated from the [OpenAPI 3.0 spec](openapi.yaml) |
+| [Interactive API reference](https://otyang.github.io/ledger/docs/api.html) | Browse every endpoint, its schemas and code samples, generated from the [OpenAPI 3.0 spec](openapi.yaml) |
 | [API reference (Markdown)](api.md) | Read every endpoint's fields, status codes, errors and real example responses |
 | [Architecture and internals](architecture.md) | Learn how posting, locking, idempotency, holds, refunds and the database rules work, before changing the code |
 
-This handbook is also the home page of the website, [otyang.github.io/ledger](https://otyang.github.io/ledger/).
+This handbook is also the home page of the website, [otyang.github.io/ledger/docs](https://otyang.github.io/ledger/docs/).
 
 ## Contents
 
@@ -183,7 +183,7 @@ curl -H "$T" "$API/accounts/acc_<alice>"
 | `GET` | `/readyz` | 200 | Ready to serve: database reachable, schema up to date (no token needed) |
 | `GET` | `/metrics` | 200 | Prometheus metrics |
 
-Every field and response is in the [interactive API reference](https://otyang.github.io/ledger/api.html), where you can also try requests against a local `ledgerd`, and in the [Markdown API reference](api.md).
+Every field and response is in the [interactive API reference](https://otyang.github.io/ledger/docs/api.html), where you can also try requests against a local `ledgerd`, and in the [Markdown API reference](api.md).
 
 #### Currencies
 

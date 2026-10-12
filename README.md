@@ -56,13 +56,28 @@ svc.Post(ctx, ledger.PostParams{Reference: "pay-1", Currency: "USD", Legs: []led
 
 | I want to… | Go here |
 |---|---|
-| Browse the HTTP API and try requests | **[Interactive API reference](https://otyang.github.io/ledger/api.html)** on the website |
+| Browse the HTTP API and try requests | **[Interactive API reference](https://otyang.github.io/ledger/docs/api.html)** on the website |
 | Set it up properly, configure it, run it in production | **[The handbook](docs/handbook.md)**: configuration, Go library, concepts, guarantees, operations, troubleshooting |
 | Understand double-entry bookkeeping from scratch | [Beginner guide](docs/guide.md), with a worked example |
 | Look up every request and response field | [API reference (Markdown)](docs/api.md) or the [OpenAPI spec](docs/openapi.yaml) |
 | Know how it works inside before changing it | [Architecture and internals](docs/architecture.md) |
 
-Everything is also on the website: **[otyang.github.io/ledger](https://otyang.github.io/ledger/)**.
+Everything is also on the website: **[otyang.github.io/ledger/docs](https://otyang.github.io/ledger/docs/)**.
+
+## Documentation
+
+All the docs in one list:
+
+| Doc | What's in it |
+|---|---|
+| [Website](https://otyang.github.io/ledger/docs/) | The handbook as a website, with a contents sidebar and copyable code |
+| [Interactive API reference](https://otyang.github.io/ledger/docs/api.html) | Every HTTP endpoint with schemas and code samples, rendered from the OpenAPI spec |
+| [OpenAPI 3.0 spec](docs/openapi.yaml) | The machine-readable API definition, for code generators, Postman or your own tools |
+| [Handbook](docs/handbook.md) | Setup, configuration, the Go library, concepts, guarantees, operations and troubleshooting |
+| [Beginner guide](docs/guide.md) | Double-entry bookkeeping explained with a worked example, from top-up to month-end |
+| [API reference (Markdown)](docs/api.md) | Every endpoint's fields, status codes, errors and real example responses |
+| [Architecture and internals](docs/architecture.md) | How posting, locking, idempotency, holds, events and the database rules work |
+| [Go package docs](https://pkg.go.dev/github.com/otyang/ledger) | Generated reference for every exported Go type and function |
 
 ## Contributing
 
