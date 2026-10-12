@@ -1,0 +1,1415 @@
+openapi: 3.0.3
+info:
+  title: ledger API
+  version: 0.1.0
+  description: |
+    The HTTP API of `ledgerd`, a double-entry ledger on PostgreSQL.
+
+    **Amounts** are whole numbers of a currency's smallest unit (cents for USD, wei for ETH),
+    sent as JSON strings so large values keep every digit: `"amount": "540323"`. Requests may also
+    send integers. Anywhere a request takes an `amount` you may send a `value` instead: the same
+    amount as a decimal (`"value": "5403.23"`), converted with the currency's registered decimals and
+    never rounded. Responses include both forms for every amount (`balance` and `balance_value`, …).
+
+    **Idempotency.** Transactions, holds, refunds, reversals, batches and exchanges take a
+    `reference`, unique per ledger. Sending the same request again returns the original result with
+    the same status. Reusing a reference for a different request returns `409 reference_conflict`.
+
+    **Errors** are `{"error": {"code": "...", "message": "..."}}`. Branch on `code`. A `503` (codes
+    `retryable` and `timeout`) applied nothing: retry the same request.
+
+    Guides: [README](https://github.com/otyang/ledger#readme) ·
+    [API reference](https://github.com/otyang/ledger/blob/main/docs/api.md) ·
+    [Architecture](https://github.com/otyang/ledger/blob/main/docs/architecture.md)
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+  contact:
+    name: ledger on GitHub
+    url: https://github.com/otyang/ledger
+servers:
+  - url: http://localhost:7710
+    description: A local ledgerd (the default port)
+security:
+  - bearerAuth: []
+tags:
+  - name: Currencies
+    description: Register currencies and their decimals. Required before accounts use them.
+  - name: Ledgers
+    description: Ledgers group accounts. A transaction only involves accounts of one ledger.
+  - name: Accounts
+    description: Accounts hold balances in one currency. Freeze, close, limit and classify them.
+  - name: Transactions
+    description: Balanced movements of money. Each leg becomes an immutable entry.
+  - name: Refunds and reversals
+    description: Give money back, in part or in full, without changing the original.
+  - name: Holds
+    description: Reserve funds without moving them, then commit, void, or let them expire.
+  - name: Batches and exchanges
+    description: Post many transactions atomically, or convert between currencies.
+  - name: Reports
+    description: Search, statements, trial balance, balance sheet and income statement.
+  - name: Period close
+    description: Sign off the books through a date; nothing can be posted before it afterwards.
+  - name: Events
+    description: Every change, in order, for integrations. Also delivered by webhooks.
+  - name: Operations
+    description: Health checks and metrics.
+
+paths:
+  /currencies:
+    post:
+      tags: [Currencies]
+      operationId: registerCurrency
+      summary: Register a currency
+      description: |
+        Registers a currency and how many decimals it has. Required before any account can use it.
+        Registering the same code with the same decimals again returns the currency; different
+        decimals return `409 currency_conflict`. **Decimals can never change.**
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, decimals]
+              additionalProperties: false
+              properties:
+                code: { $ref: '#/components/schemas/CurrencyCode' }
+                decimals:
+                  type: integer
+                  minimum: 0
+                  maximum: 36
+                  description: Digits after the decimal point. USD 2, JPY 0, ETH 18.
+            example: { code: USD, decimals: 2 }
+      responses:
+        '201':
+          description: The currency
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Currency' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /currencies/{code}:
+    get:
+      tags: [Currencies]
+      operationId: getCurrency
+      summary: Get a currency
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/CurrencyCode' }
+      responses:
+        '200':
+          description: The currency
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Currency' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /ledgers:
+    post:
+      tags: [Ledgers]
+      operationId: createLedger
+      summary: Create a ledger
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              additionalProperties: false
+              properties:
+                name: { type: string, minLength: 1 }
+                metadata: { $ref: '#/components/schemas/Metadata' }
+            example: { name: main, metadata: { team: payments } }
+      responses:
+        '201':
+          description: The ledger
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Ledger' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /ledgers/{id}:
+    get:
+      tags: [Ledgers]
+      operationId: getLedger
+      summary: Get a ledger
+      parameters: [{ $ref: '#/components/parameters/LedgerID' }]
+      responses:
+        '200':
+          description: The ledger
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Ledger' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /accounts:
+    post:
+      tags: [Accounts]
+      operationId: createAccount
+      summary: Create an account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateAccountRequest' }
+            example: { ledger_id: ldg_01a1304b-d0c6-7b46-a891-ec675899674e, currency: USD, indicator: '@world', allow_negative: true, untracked: true }
+      responses:
+        '201':
+          description: The account
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /accounts/{id}:
+    get:
+      tags: [Accounts]
+      operationId: getAccount
+      summary: Get an account with its balances
+      description: For an untracked account, the totals are computed from its entries.
+      parameters: [{ $ref: '#/components/parameters/AccountID' }]
+      responses:
+        '200':
+          description: The account
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Accounts]
+      operationId: updateAccount
+      summary: Freeze, close, or change an account
+      description: |
+        Every field is optional. `frozen` accounts can receive money but none can leave; only an
+        empty account can be `closed`, and closing is final. An overdraft limit of `0` removes it.
+        A type can be set once. Metadata is merged; keys set to `null` are removed.
+      parameters: [{ $ref: '#/components/parameters/AccountID' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateAccountRequest' }
+            example: { status: frozen, status_reason: fraud review }
+      responses:
+        '200':
+          description: The updated account
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /accounts/{id}/entries:
+    get:
+      tags: [Accounts]
+      operationId: listEntries
+      summary: List an account's entries, oldest first
+      description: Safe to poll with `after`; an entry never appears behind a cursor already handed out.
+      parameters:
+        - { $ref: '#/components/parameters/AccountID' }
+        - name: after
+          in: query
+          description: ID of the last entry from the previous page.
+          schema: { type: string, example: ent_01a1304b-d16d-7e8b-866c-d551e7414a9b }
+        - { $ref: '#/components/parameters/Limit' }
+      responses:
+        '200':
+          description: A page of entries
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [entries]
+                properties:
+                  entries:
+                    type: array
+                    items: { $ref: '#/components/schemas/Entry' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /accounts/{id}/balance:
+    get:
+      tags: [Accounts]
+      operationId: getBalanceAt
+      summary: An account's balance at a moment
+      description: The posted balance; holds are not included.
+      parameters:
+        - { $ref: '#/components/parameters/AccountID' }
+        - name: at
+          in: query
+          description: Default now.
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: The balance
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [account_id, at, balance]
+                properties:
+                  account_id: { type: string }
+                  at: { type: string, format: date-time }
+                  balance: { $ref: '#/components/schemas/Amount' }
+                  balance_value: { $ref: '#/components/schemas/Value' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /accounts/{id}/statement:
+    get:
+      tags: [Reports]
+      operationId: getStatement
+      summary: Account statement
+      description: Entries with `from` ≤ created_at < `to`, the balance before them and the running balance after each. More than 100,000 entries is refused.
+      parameters:
+        - { $ref: '#/components/parameters/AccountID' }
+        - { $ref: '#/components/parameters/FromRequired' }
+        - { $ref: '#/components/parameters/To' }
+      responses:
+        '200':
+          description: The statement
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Statement' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /accounts/{id}/statement.csv:
+    get:
+      tags: [Reports]
+      operationId: getStatementCSV
+      summary: Account statement as CSV
+      description: The same statement as a download, with opening and closing balance rows. Text starting with `=`, `+`, `-` or `@` is prefixed with `'`.
+      parameters:
+        - { $ref: '#/components/parameters/AccountID' }
+        - { $ref: '#/components/parameters/FromRequired' }
+        - { $ref: '#/components/parameters/To' }
+      responses:
+        '200':
+          description: CSV with columns created_at, entry_id, transaction_id, reference, description, direction, amount, value, balance, balance_value
+          content:
+            text/csv:
+              schema: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /transactions:
+    post:
+      tags: [Transactions]
+      operationId: postTransaction
+      summary: Post a transaction
+      description: At least two legs across at least two accounts in one ledger and the transaction's currency; debits must equal credits. A debit lowers an account's balance, a credit raises it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PostTransactionRequest' }
+            example:
+              reference: order-8841
+              currency: USD
+              description: Concert ticket
+              metadata: { customer_id: c_77 }
+              legs:
+                - { account_id: acc_01a1304b-d11c-7318-9858-3f67ffa53e7a, direction: debit, value: '50.00' }
+                - { account_id: acc_01a1304b-d136-7ccd-be5c-594a26b2c631, direction: credit, value: '47.00' }
+                - { account_id: acc_01a1304b-d151-72fd-aada-1742e14f0ded, direction: credit, amount: '300' }
+      responses:
+        '201':
+          description: The transaction (also returned for a retry of the same request)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transaction' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /transactions/{id}:
+    get:
+      tags: [Transactions]
+      operationId: getTransaction
+      summary: Get a transaction with its entries
+      parameters: [{ $ref: '#/components/parameters/TransactionID' }]
+      responses:
+        '200':
+          description: The transaction
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transaction' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Transactions]
+      operationId: updateTransactionMetadata
+      summary: Update a transaction's metadata
+      description: Metadata is the only part of a transaction that can change. It is merged; keys set to `null` are removed.
+      parameters: [{ $ref: '#/components/parameters/TransactionID' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [metadata]
+              additionalProperties: false
+              properties:
+                metadata: { $ref: '#/components/schemas/Metadata' }
+            example: { metadata: { invoice: inv-42 } }
+      responses:
+        '200':
+          description: The transaction
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transaction' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /transactions/{id}/refunds:
+    post:
+      tags: [Refunds and reversals]
+      operationId: refund
+      summary: Refund all or part of a transaction
+      description: |
+        Send no amount, value or legs to refund everything left; `amount`/`value` for part of a
+        two-leg transaction; `legs` for specific legs of a multi-leg one. An explicit zero is refused.
+        Refunds never add up to more than the original.
+      parameters: [{ $ref: '#/components/parameters/TransactionID' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefundRequest' }
+            example: { reference: refund-1, value: '10.00' }
+      responses:
+        '201':
+          description: The refund transaction (`refund_of` set)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transaction' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /transactions/{id}/refundable:
+    get:
+      tags: [Refunds and reversals]
+      operationId: getRefundable
+      summary: What is left to refund
+      parameters: [{ $ref: '#/components/parameters/TransactionID' }]
+      responses:
+        '200':
+          description: The legs a full refund would post now
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [legs]
+                properties:
+                  legs:
+                    type: array
+                    items: { $ref: '#/components/schemas/Leg' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /transactions/{id}/reversals:
+    post:
+      tags: [Refunds and reversals]
+      operationId: reverse
+      summary: Reverse a transaction
+      description: Undoes everything not yet refunded, recording why. Reversing again returns `422 refund_exceeded`.
+      parameters: [{ $ref: '#/components/parameters/TransactionID' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reference, reason]
+              additionalProperties: false
+              properties:
+                reference: { $ref: '#/components/schemas/Reference' }
+                reason: { type: string, minLength: 1 }
+                description: { type: string }
+                metadata: { $ref: '#/components/schemas/Metadata' }
+            example: { reference: fix-mistake, reason: sent to the wrong account }
+      responses:
+        '201':
+          description: The reversal (`refund_of` and `reversal_reason` set)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transaction' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /holds:
+    post:
+      tags: [Holds]
+      operationId: createHold
+      summary: Reserve funds
+      description: While pending, the hold's debits reduce the source accounts' available balance. With `expires_at`, it lapses at that moment and `ledgerd` releases it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HoldRequest' }
+            example:
+              reference: auth-9
+              currency: USD
+              expires_at: '2026-10-19T12:00:00Z'
+              legs:
+                - { account_id: acc_01a1304b-d11c-7318-9858-3f67ffa53e7a, direction: debit, value: '20.00' }
+                - { account_id: acc_01a1304b-d136-7ccd-be5c-594a26b2c631, direction: credit, value: '20.00' }
+      responses:
+        '201':
+          description: The hold
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Hold' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /holds/{id}:
+    get:
+      tags: [Holds]
+      operationId: getHold
+      summary: Get a hold
+      parameters: [{ $ref: '#/components/parameters/HoldID' }]
+      responses:
+        '200':
+          description: The hold
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Hold' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /holds/{id}/commit:
+    post:
+      tags: [Holds]
+      operationId: commitHold
+      summary: Post all or part of a hold
+      description: An empty body commits the whole hold. Whatever isn't committed is released. A hold commits at most once; retrying the same commit returns the same transaction.
+      parameters: [{ $ref: '#/components/parameters/HoldID' }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CommitHoldRequest' }
+            example: { value: '15.00' }
+      responses:
+        '201':
+          description: The commit transaction (`hold_id` set)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transaction' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /holds/{id}/void:
+    post:
+      tags: [Holds]
+      operationId: voidHold
+      summary: Release a hold
+      description: Voiding a voided hold returns it unchanged; a committed or expired hold returns `409 hold_not_pending`.
+      parameters: [{ $ref: '#/components/parameters/HoldID' }]
+      responses:
+        '200':
+          description: The voided hold
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Hold' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /batches:
+    post:
+      tags: [Batches and exchanges]
+      operationId: postBatch
+      summary: Post several transactions at once
+      description: Up to 1,000 transactions, all or nothing, in one ledger. Funds are checked once on their combined effect. Member references are optional.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BatchRequest' }
+            example:
+              reference: payroll-october
+              transactions:
+                - currency: USD
+                  legs:
+                    - { account_id: acc_01a1304b-d11c-7318-9858-3f67ffa53e7a, direction: debit, value: '3000.00' }
+                    - { account_id: acc_01a1304b-d136-7ccd-be5c-594a26b2c631, direction: credit, value: '3000.00' }
+      responses:
+        '201':
+          description: The batch with its transactions
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Batch' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /batches/{id}:
+    get:
+      tags: [Batches and exchanges]
+      operationId: getBatch
+      summary: Get a batch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, example: bat_01a13070-b849-7b0c-9fc7-63ba14a1e4f3 }
+      responses:
+        '200':
+          description: The batch
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Batch' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /exchanges:
+    post:
+      tags: [Batches and exchanges]
+      operationId: exchange
+      summary: Convert between currencies
+      description: Posts two transfers in different currencies together, as a batch of kind `exchange`. The rate is recorded as given and not checked against the amounts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExchangeRequest' }
+            example:
+              reference: fx-1
+              rate: '0.92'
+              source: { currency: USD, from: acc_01a13070-b755-7f3a-9dc3-1bf923623514, to: acc_01a13070-b7e5-7914-aa79-4fedf49b9bf3, value: '50.00' }
+              target: { currency: EUR, from: acc_01a13070-b7ac-7efb-9238-52bf64cb248b, to: acc_01a13070-b7c9-7a41-b65b-924f453bed98, value: '46.00' }
+      responses:
+        '201':
+          description: The exchange
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Batch' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /ledgers/{id}/transactions:
+    get:
+      tags: [Reports]
+      operationId: listTransactions
+      summary: Search transactions
+      description: |
+        Oldest first, with entries. Filter by metadata with `metadata.<key>=<value>` query
+        parameters (string values), e.g. `?metadata.customer_id=c_77`. For following new
+        transactions reliably, use events instead.
+      parameters:
+        - { $ref: '#/components/parameters/LedgerID' }
+        - name: account_id
+          in: query
+          description: Only transactions with an entry on this account.
+          schema: { type: string }
+        - { $ref: '#/components/parameters/From' }
+        - name: to
+          in: query
+          description: Exclusive end of created_at.
+          schema: { type: string, format: date-time }
+        - name: after
+          in: query
+          description: ID of the last transaction from the previous page.
+          schema: { type: string }
+        - { $ref: '#/components/parameters/Limit' }
+      responses:
+        '200':
+          description: Matching transactions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [transactions]
+                properties:
+                  transactions:
+                    type: array
+                    items: { $ref: '#/components/schemas/Transaction' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /ledgers/{id}/trial-balance:
+    get:
+      tags: [Reports]
+      operationId: getTrialBalance
+      summary: Trial balance
+      description: Every account's posted balance at a moment, and totals per currency, which are always zero.
+      parameters:
+        - { $ref: '#/components/parameters/LedgerID' }
+        - name: at
+          in: query
+          description: Default now.
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: The trial balance
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TrialBalance' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /ledgers/{id}/balance-sheet:
+    get:
+      tags: [Reports]
+      operationId: getBalanceSheet
+      summary: Balance sheet
+      description: One currency's accounts grouped by type, positive in each account's normal direction. Always assets = liabilities + equity + net_income + unclassified.
+      parameters:
+        - { $ref: '#/components/parameters/LedgerID' }
+        - { $ref: '#/components/parameters/CurrencyQuery' }
+        - name: at
+          in: query
+          description: Default now.
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: The balance sheet
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BalanceSheet' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /ledgers/{id}/income-statement:
+    get:
+      tags: [Reports]
+      operationId: getIncomeStatement
+      summary: Income statement
+      description: One currency's revenue and expenses after `from`, up to and including `to`.
+      parameters:
+        - { $ref: '#/components/parameters/LedgerID' }
+        - { $ref: '#/components/parameters/CurrencyQuery' }
+        - { $ref: '#/components/parameters/FromRequired' }
+        - { $ref: '#/components/parameters/To' }
+      responses:
+        '200':
+          description: The income statement
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IncomeStatement' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /ledgers/{id}/periods:
+    post:
+      tags: [Period close]
+      operationId: closePeriod
+      summary: Close the books through a moment
+      description: |
+        From then on the database refuses entries dated at or before it, and the trial balance at
+        that moment is stored. `through` must be at least a minute in the past. Closing the same
+        moment again returns the existing close; an earlier one returns `409 period_closed`.
+      parameters: [{ $ref: '#/components/parameters/LedgerID' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [through]
+              additionalProperties: false
+              properties:
+                through: { type: string, format: date-time }
+            example: { through: '2026-09-30T23:59:59.999999Z' }
+      responses:
+        '201':
+          description: The period close
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PeriodClose' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    get:
+      tags: [Period close]
+      operationId: listPeriodCloses
+      summary: List closed periods
+      parameters: [{ $ref: '#/components/parameters/LedgerID' }]
+      responses:
+        '200':
+          description: Closes, oldest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [periods]
+                properties:
+                  periods:
+                    type: array
+                    items: { $ref: '#/components/schemas/PeriodClose' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /events:
+    get:
+      tags: [Events]
+      operationId: listEvents
+      summary: Every change, in order
+      description: |
+        Each change writes an event in the same database transaction, so events exist exactly when
+        their changes do. Pages never skip one: poll with `after`. Types: `currency.registered`,
+        `ledger.created`, `account.created`, `account.updated`, `transaction.posted`,
+        `transaction.updated`, `hold.created`, `hold.committed`, `hold.voided`, `hold.expired`,
+        `batch.posted`, `period.closed`.
+      parameters:
+        - name: after
+          in: query
+          description: ID of the last event processed.
+          schema: { type: string }
+        - name: ledger_id
+          in: query
+          schema: { type: string }
+        - { $ref: '#/components/parameters/Limit' }
+      responses:
+        '200':
+          description: A page of events
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [events]
+                properties:
+                  events:
+                    type: array
+                    items: { $ref: '#/components/schemas/Event' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /healthz:
+    get:
+      tags: [Operations]
+      operationId: healthz
+      summary: Liveness
+      description: 200 whenever the process runs. Doesn't check the database. No token needed.
+      security: []
+      responses:
+        '200':
+          description: Alive
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+  /readyz:
+    get:
+      tags: [Operations]
+      operationId: readyz
+      summary: Readiness
+      description: 503 while the database is unreachable, the schema is behind, or the server is shutting down. No token needed.
+      security: []
+      responses:
+        '200':
+          description: Ready
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+        '503':
+          description: Not ready
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+  /metrics:
+    get:
+      tags: [Operations]
+      operationId: metrics
+      summary: Prometheus metrics
+      responses:
+        '200':
+          description: Prometheus text format
+          content:
+            text/plain:
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: The value of `LEDGER_API_TOKEN`.
+
+  parameters:
+    LedgerID:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, example: ldg_01a1304b-d0c6-7b46-a891-ec675899674e }
+    AccountID:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, example: acc_01a1304b-d11c-7318-9858-3f67ffa53e7a }
+    TransactionID:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, example: txn_01a1304b-d17b-753f-a3ad-9d31fdb0e2f4 }
+    HoldID:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, example: hld_01a1304b-d1e8-7683-a151-8bd8caac82cd }
+    Limit:
+      name: limit
+      in: query
+      description: Default 100, capped at 1000.
+      schema: { type: integer, minimum: 1, maximum: 1000 }
+    From:
+      name: from
+      in: query
+      description: Inclusive start (RFC 3339).
+      schema: { type: string, format: date-time }
+    FromRequired:
+      name: from
+      in: query
+      required: true
+      description: Start (RFC 3339).
+      schema: { type: string, format: date-time }
+    To:
+      name: to
+      in: query
+      description: End (RFC 3339). Default now.
+      schema: { type: string, format: date-time }
+    CurrencyQuery:
+      name: currency
+      in: query
+      required: true
+      schema: { $ref: '#/components/schemas/CurrencyCode' }
+
+  responses:
+    BadRequest:
+      description: 'Invalid request: `invalid_params`, `invalid_id` or `amount_overflow`'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: { code: invalid_params, message: 'leg 0: ledger: invalid params: value "1.001" has more than 2 decimals' } }
+    Unauthorized:
+      description: Missing or wrong bearer token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: { code: unauthorized, message: missing or invalid bearer token } }
+    NotFound:
+      description: The object in the URL doesn't exist
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: '`already_exists`, `reference_conflict`, `hold_not_pending`, `hold_expired`, `currency_conflict` or `period_closed`'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: { code: reference_conflict, message: 'ledger: reference already used for a different transaction: "order-8841"' } }
+    Unprocessable:
+      description: '`unknown_reference`, `unknown_currency`, `unbalanced`, `currency_mismatch`, `ledger_mismatch`, `insufficient_funds`, `refund_exceeded`, `account_frozen` or `account_closed`'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: { code: insufficient_funds, message: 'ledger: insufficient funds: account acc_01a1304b-d11c-7318-9858-3f67ffa53e7a' } }
+    TooManyRequests:
+      description: Rate limited (`rate_limited`); see the Retry-After header
+      headers:
+        Retry-After: { schema: { type: integer }, description: Seconds to wait }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unavailable:
+      description: '`retryable` or `timeout`: nothing was applied; retry the same request'
+      headers:
+        Retry-After: { schema: { type: integer }, description: Seconds to wait }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Amount:
+      type: string
+      pattern: '^-?[0-9]{1,78}$'
+      description: A whole number of the currency's smallest unit (up to 78 digits), as a string.
+      example: '540323'
+    AmountInput:
+      description: An amount as a string or an integer.
+      oneOf:
+        - { $ref: '#/components/schemas/Amount' }
+        - { type: integer }
+    Value:
+      type: string
+      pattern: '^-?[0-9]+(\.[0-9]+)?$'
+      description: The same amount as a decimal, using the currency's decimals. Never rounded.
+      example: '5403.23'
+    CurrencyCode:
+      type: string
+      pattern: '^[A-Z][A-Z0-9]{2,9}$'
+      example: USD
+    Reference:
+      type: string
+      minLength: 1
+      maxLength: 255
+      description: Idempotency key, unique per ledger.
+    Metadata:
+      type: object
+      additionalProperties: true
+      description: Your own data.
+    Direction:
+      type: string
+      enum: [debit, credit]
+      description: A debit lowers the account's balance; a credit raises it.
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, example: insufficient_funds }
+            message: { type: string }
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [ok, unavailable] }
+        reason: { type: string, example: database unreachable }
+
+    Currency:
+      type: object
+      required: [code, decimals, created_at]
+      example: { code: USD, decimals: 2, created_at: '2026-10-12T13:27:17.433107Z' }
+      properties:
+        code: { $ref: '#/components/schemas/CurrencyCode' }
+        decimals:
+          type: integer
+          nullable: true
+          description: Null only for currencies in use before migration 0005, until registered.
+        created_at: { type: string, format: date-time }
+    Ledger:
+      type: object
+      required: [id, name, created_at]
+      properties:
+        id: { type: string, example: ldg_01a1304b-d0c6-7b46-a891-ec675899674e }
+        name: { type: string }
+        metadata: { $ref: '#/components/schemas/Metadata' }
+        closed_through:
+          type: string
+          format: date-time
+          description: End of the last closed period.
+        created_at: { type: string, format: date-time }
+
+    AccountType:
+      type: string
+      enum: [asset, liability, equity, revenue, expense]
+    AccountStatus:
+      type: string
+      enum: [active, frozen, closed]
+    CreateAccountRequest:
+      type: object
+      required: [ledger_id, currency]
+      additionalProperties: false
+      properties:
+        ledger_id: { type: string }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        indicator:
+          type: string
+          pattern: '^@[A-Za-z0-9_.:-]+$'
+          description: A readable name, unique per ledger and currency.
+          example: '@world'
+        allow_negative: { type: boolean, default: false }
+        untracked:
+          type: boolean
+          default: false
+          description: No locking; balance computed on read. Requires allow_negative.
+        overdraft_limit: { $ref: '#/components/schemas/AmountInput' }
+        overdraft_limit_value: { $ref: '#/components/schemas/Value' }
+        type: { $ref: '#/components/schemas/AccountType' }
+        metadata: { $ref: '#/components/schemas/Metadata' }
+    UpdateAccountRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        status: { $ref: '#/components/schemas/AccountStatus' }
+        status_reason: { type: string }
+        overdraft_limit: { $ref: '#/components/schemas/AmountInput' }
+        overdraft_limit_value: { $ref: '#/components/schemas/Value' }
+        type: { $ref: '#/components/schemas/AccountType' }
+        metadata: { $ref: '#/components/schemas/Metadata' }
+    Account:
+      type: object
+      required: [id, ledger_id, currency, allow_negative, untracked, status, credit_total, debit_total, balance, pending_debit, pending_credit, version, created_at, updated_at]
+      properties:
+        id: { type: string, example: acc_01a1304b-d11c-7318-9858-3f67ffa53e7a }
+        ledger_id: { type: string }
+        indicator: { type: string }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        allow_negative: { type: boolean }
+        overdraft_limit: { $ref: '#/components/schemas/Amount' }
+        overdraft_limit_value: { $ref: '#/components/schemas/Value' }
+        untracked: { type: boolean }
+        status: { $ref: '#/components/schemas/AccountStatus' }
+        status_reason: { type: string }
+        type: { $ref: '#/components/schemas/AccountType' }
+        credit_total: { $ref: '#/components/schemas/Amount' }
+        credit_total_value: { $ref: '#/components/schemas/Value' }
+        debit_total: { $ref: '#/components/schemas/Amount' }
+        debit_total_value: { $ref: '#/components/schemas/Value' }
+        balance: { $ref: '#/components/schemas/Amount' }
+        balance_value: { $ref: '#/components/schemas/Value' }
+        pending_debit: { $ref: '#/components/schemas/Amount' }
+        pending_debit_value: { $ref: '#/components/schemas/Value' }
+        pending_credit: { $ref: '#/components/schemas/Amount' }
+        pending_credit_value: { $ref: '#/components/schemas/Value' }
+        version: { type: integer, description: Number of entries posted to the account. }
+        metadata: { $ref: '#/components/schemas/Metadata' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    LegInput:
+      type: object
+      required: [account_id, direction]
+      additionalProperties: false
+      description: Give `amount` or `value`; if both, they must agree.
+      properties:
+        account_id: { type: string }
+        direction: { $ref: '#/components/schemas/Direction' }
+        amount: { $ref: '#/components/schemas/AmountInput' }
+        value: { $ref: '#/components/schemas/Value' }
+    Leg:
+      type: object
+      required: [account_id, direction, amount]
+      properties:
+        account_id: { type: string }
+        direction: { $ref: '#/components/schemas/Direction' }
+        amount: { $ref: '#/components/schemas/Amount' }
+        value: { $ref: '#/components/schemas/Value' }
+    PostTransactionRequest:
+      type: object
+      required: [reference, currency, legs]
+      additionalProperties: false
+      properties:
+        reference: { $ref: '#/components/schemas/Reference' }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        description: { type: string }
+        metadata: { $ref: '#/components/schemas/Metadata' }
+        legs:
+          type: array
+          minItems: 2
+          items: { $ref: '#/components/schemas/LegInput' }
+    Entry:
+      type: object
+      required: [id, transaction_id, account_id, direction, amount, created_at]
+      description: One leg of a transaction. Never changes.
+      properties:
+        id: { type: string, example: ent_01a1304b-d16d-7e8b-866c-d551e7414a9b }
+        transaction_id: { type: string }
+        account_id: { type: string }
+        direction: { $ref: '#/components/schemas/Direction' }
+        amount: { $ref: '#/components/schemas/Amount' }
+        value: { $ref: '#/components/schemas/Value' }
+        balance_after:
+          allOf: [{ $ref: '#/components/schemas/Amount' }]
+          description: Omitted for untracked accounts.
+        balance_after_value: { $ref: '#/components/schemas/Value' }
+        account_version:
+          type: integer
+          description: 1, 2, 3, … per account. Omitted for untracked accounts.
+        created_at: { type: string, format: date-time }
+    Transaction:
+      type: object
+      required: [id, ledger_id, status, currency, created_at]
+      properties:
+        id: { type: string, example: txn_01a1304b-d17b-753f-a3ad-9d31fdb0e2f4 }
+        ledger_id: { type: string }
+        reference: { type: string, description: Omitted on hold commits and optional on batch members. }
+        status: { type: string, enum: [posted] }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        description: { type: string }
+        metadata: { $ref: '#/components/schemas/Metadata' }
+        refund_of: { type: string, description: Set on refunds and reversals. }
+        reversal_reason: { type: string, description: Set on reversals. }
+        hold_id: { type: string, description: Set on hold commits. }
+        batch_id: { type: string, description: Set on batch and exchange members. }
+        created_at: { type: string, format: date-time }
+        entries:
+          type: array
+          items: { $ref: '#/components/schemas/Entry' }
+    RefundRequest:
+      type: object
+      required: [reference]
+      additionalProperties: false
+      properties:
+        reference: { $ref: '#/components/schemas/Reference' }
+        amount: { $ref: '#/components/schemas/AmountInput' }
+        value: { $ref: '#/components/schemas/Value' }
+        legs:
+          type: array
+          items: { $ref: '#/components/schemas/LegInput' }
+        description: { type: string }
+        metadata: { $ref: '#/components/schemas/Metadata' }
+
+    HoldRequest:
+      type: object
+      required: [reference, currency, legs]
+      additionalProperties: false
+      properties:
+        reference: { $ref: '#/components/schemas/Reference' }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        description: { type: string }
+        metadata: { $ref: '#/components/schemas/Metadata' }
+        legs:
+          type: array
+          minItems: 2
+          items: { $ref: '#/components/schemas/LegInput' }
+        expires_at:
+          type: string
+          format: date-time
+          description: Must be in the future. Not part of the idempotency check.
+    CommitHoldRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        amount: { $ref: '#/components/schemas/AmountInput' }
+        value: { $ref: '#/components/schemas/Value' }
+        legs:
+          type: array
+          items: { $ref: '#/components/schemas/LegInput' }
+        description: { type: string }
+        metadata: { $ref: '#/components/schemas/Metadata' }
+    Hold:
+      type: object
+      required: [id, ledger_id, reference, status, currency, legs, created_at]
+      properties:
+        id: { type: string, example: hld_01a1304b-d1e8-7683-a151-8bd8caac82cd }
+        ledger_id: { type: string }
+        reference: { type: string }
+        status: { type: string, enum: [pending, committed, voided, expired] }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        description: { type: string }
+        metadata: { $ref: '#/components/schemas/Metadata' }
+        legs:
+          type: array
+          description: What was reserved.
+          items: { $ref: '#/components/schemas/Leg' }
+        transaction_id: { type: string, description: Set when committed. }
+        expires_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+        resolved_at: { type: string, format: date-time, description: 'Set when committed, voided or expired.' }
+
+    BatchMemberRequest:
+      type: object
+      required: [currency, legs]
+      additionalProperties: false
+      properties:
+        reference: { $ref: '#/components/schemas/Reference' }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        description: { type: string }
+        metadata: { $ref: '#/components/schemas/Metadata' }
+        legs:
+          type: array
+          minItems: 2
+          items: { $ref: '#/components/schemas/LegInput' }
+    BatchRequest:
+      type: object
+      required: [reference, transactions]
+      additionalProperties: false
+      properties:
+        reference: { $ref: '#/components/schemas/Reference' }
+        description: { type: string }
+        metadata: { $ref: '#/components/schemas/Metadata' }
+        transactions:
+          type: array
+          minItems: 1
+          maxItems: 1000
+          items: { $ref: '#/components/schemas/BatchMemberRequest' }
+    ExchangeSide:
+      type: object
+      required: [currency, from, to]
+      additionalProperties: false
+      properties:
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        from: { type: string, description: Account debited. }
+        to: { type: string, description: Account credited. }
+        amount: { $ref: '#/components/schemas/AmountInput' }
+        value: { $ref: '#/components/schemas/Value' }
+    ExchangeRequest:
+      type: object
+      required: [reference, source, target]
+      additionalProperties: false
+      properties:
+        reference: { $ref: '#/components/schemas/Reference' }
+        source: { $ref: '#/components/schemas/ExchangeSide' }
+        target: { $ref: '#/components/schemas/ExchangeSide' }
+        rate:
+          type: string
+          pattern: '^[0-9]+(\.[0-9]+)?$'
+          example: '0.92'
+        description: { type: string }
+        metadata: { $ref: '#/components/schemas/Metadata' }
+    Batch:
+      type: object
+      required: [id, ledger_id, reference, kind, created_at, transactions]
+      properties:
+        id: { type: string, example: bat_01a13070-b849-7b0c-9fc7-63ba14a1e4f3 }
+        ledger_id: { type: string }
+        reference: { type: string }
+        kind: { type: string, enum: [batch, exchange] }
+        rate: { type: string, description: Exchanges only. }
+        description: { type: string }
+        metadata: { $ref: '#/components/schemas/Metadata' }
+        created_at: { type: string, format: date-time }
+        transactions:
+          type: array
+          items: { $ref: '#/components/schemas/Transaction' }
+
+    TrialBalanceLine:
+      type: object
+      required: [account_id, currency, balance]
+      properties:
+        account_id: { type: string }
+        indicator: { type: string }
+        type: { $ref: '#/components/schemas/AccountType' }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        balance: { $ref: '#/components/schemas/Amount' }
+        balance_value: { $ref: '#/components/schemas/Value' }
+    TrialBalance:
+      type: object
+      required: [ledger_id, at, accounts, totals]
+      properties:
+        ledger_id: { type: string }
+        at: { type: string, format: date-time }
+        accounts:
+          type: array
+          items: { $ref: '#/components/schemas/TrialBalanceLine' }
+        totals:
+          type: array
+          items:
+            type: object
+            required: [currency, total]
+            properties:
+              currency: { $ref: '#/components/schemas/CurrencyCode' }
+              total: { $ref: '#/components/schemas/Amount' }
+              total_value: { $ref: '#/components/schemas/Value' }
+    ReportSection:
+      type: object
+      required: [accounts, total]
+      properties:
+        accounts:
+          type: array
+          items:
+            type: object
+            required: [account_id, amount]
+            properties:
+              account_id: { type: string }
+              indicator: { type: string }
+              amount: { $ref: '#/components/schemas/Amount' }
+              amount_value: { $ref: '#/components/schemas/Value' }
+        total: { $ref: '#/components/schemas/Amount' }
+        total_value: { $ref: '#/components/schemas/Value' }
+    BalanceSheet:
+      type: object
+      required: [ledger_id, currency, at, assets, liabilities, equity, net_income, unclassified]
+      properties:
+        ledger_id: { type: string }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        at: { type: string, format: date-time }
+        assets: { $ref: '#/components/schemas/ReportSection' }
+        liabilities: { $ref: '#/components/schemas/ReportSection' }
+        equity: { $ref: '#/components/schemas/ReportSection' }
+        net_income: { $ref: '#/components/schemas/Amount' }
+        net_income_value: { $ref: '#/components/schemas/Value' }
+        unclassified: { $ref: '#/components/schemas/ReportSection' }
+    IncomeStatement:
+      type: object
+      required: [ledger_id, currency, from, to, revenue, expenses, net_income]
+      properties:
+        ledger_id: { type: string }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        revenue: { $ref: '#/components/schemas/ReportSection' }
+        expenses: { $ref: '#/components/schemas/ReportSection' }
+        net_income: { $ref: '#/components/schemas/Amount' }
+        net_income_value: { $ref: '#/components/schemas/Value' }
+    Statement:
+      type: object
+      required: [account, from, to, opening_balance, closing_balance, lines]
+      properties:
+        account: { $ref: '#/components/schemas/Account' }
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        opening_balance: { $ref: '#/components/schemas/Amount' }
+        opening_balance_value: { $ref: '#/components/schemas/Value' }
+        closing_balance: { $ref: '#/components/schemas/Amount' }
+        closing_balance_value: { $ref: '#/components/schemas/Value' }
+        lines:
+          type: array
+          items:
+            type: object
+            required: [entry_id, transaction_id, direction, amount, balance, created_at]
+            properties:
+              entry_id: { type: string }
+              transaction_id: { type: string }
+              reference: { type: string }
+              description: { type: string }
+              direction: { $ref: '#/components/schemas/Direction' }
+              amount: { $ref: '#/components/schemas/Amount' }
+              value: { $ref: '#/components/schemas/Value' }
+              balance: { $ref: '#/components/schemas/Amount' }
+              balance_value: { $ref: '#/components/schemas/Value' }
+              created_at: { type: string, format: date-time }
+    PeriodClose:
+      type: object
+      required: [ledger_id, closed_through, closed_at, trial_balance]
+      properties:
+        ledger_id: { type: string }
+        closed_through: { type: string, format: date-time }
+        closed_at: { type: string, format: date-time }
+        trial_balance: { $ref: '#/components/schemas/TrialBalance' }
+    Event:
+      type: object
+      required: [id, type, subject_id, data, created_at]
+      properties:
+        id: { type: string, example: evt_01a13070-b715-7324-a5cf-464d7ab570db }
+        type: { type: string, example: transaction.posted }
+        ledger_id: { type: string, description: Omitted for currency events. }
+        subject_id: { type: string, description: "The changed object's ID (for currencies, the code)." }
+        data:
+          type: object
+          additionalProperties: true
+          description: The object after the change, without the decimal value fields.
+        created_at: { type: string, format: date-time }

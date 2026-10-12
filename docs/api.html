@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="HTTP API reference for ledgerd, generated from its OpenAPI 3.0 specification.">
+<title>ledger API reference</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231d5a9e'/%3E%3Cpath d='M8 9h16M8 16h16M8 23h16M16 6v20' stroke='white' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  /* The page renders docs/openapi.yaml with Redoc, under a bar linking back to the site. */
+  :root { --bar-bg: #14202a; --bar-fg: #e2e9ee; --bar-accent: #7cb0ea; --bar-h: 52px; }
+  html, body { margin: 0; }
+  body { background: #ffffff; }
+  .bar {
+    position: sticky; top: 0; z-index: 10;
+    height: var(--bar-h); box-sizing: border-box;
+    display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
+    padding: 0 16px;
+    background: var(--bar-bg); color: var(--bar-fg);
+    font: 500 14px/1 "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+  }
+  .bar strong { font: 600 18px/1 "IBM Plex Sans Condensed", "Arial Narrow", sans-serif; letter-spacing: 0.01em; }
+  .bar a { color: var(--bar-fg); text-decoration: none; }
+  .bar a:hover, .bar a:focus-visible { color: var(--bar-accent); }
+  .bar .spacer { flex: 1; }
+  .bar .spec { color: var(--bar-accent); }
+  noscript p { font: 16px/1.5 "IBM Plex Sans", sans-serif; padding: 24px 16px; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <a href="index.html"><strong>ledger</strong></a>
+  <span>API reference</span>
+  <span class="spacer"></span>
+  <a href="index.html">Home</a>
+  <a class="spec" href="openapi.yaml">openapi.yaml</a>
+  <a href="https://github.com/otyang/ledger">GitHub</a>
+</header>
+<noscript><p>This page needs JavaScript. The raw specification is at <a href="openapi.yaml">openapi.yaml</a>.</p></noscript>
+<div id="redoc"></div>
+<script src="https://cdn.jsdelivr.net/npm/redoc@2.1.5/bundles/redoc.standalone.js"></script>
+<script>
+  Redoc.init("openapi.yaml", {
+    scrollYOffset: ".bar",
+    hideDownloadButton: false,
+    expandResponses: "200,201",
+    jsonSampleExpandLevel: 3,
+    sortTagsAlphabetically: false,
+    theme: {
+      colors: {
+        primary: { main: "#1d5a9e" },
+        success: { main: "#2a7148" },
+        error: { main: "#a63d2b" },
+        text: { primary: "#14202a", secondary: "#566774" },
+        border: { dark: "#b8c4cc", light: "#d5dde3" }
+      },
+      typography: {
+        fontFamily: '"IBM Plex Sans", -apple-system, "Segoe UI", sans-serif',
+        fontSize: "15px",
+        headings: { fontFamily: '"IBM Plex Sans Condensed", "Arial Narrow", sans-serif', fontWeight: "600" },
+        code: { fontFamily: '"IBM Plex Mono", ui-monospace, Menlo, monospace', fontSize: "13px" }
+      },
+      sidebar: { backgroundColor: "#f5f7f8", textColor: "#14202a", activeTextColor: "#1d5a9e" },
+      rightPanel: { backgroundColor: "#14202a" }
+    }
+  }, document.getElementById("redoc"));
+</script>
+</body>
+</html>

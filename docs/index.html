@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="A double-entry ledger for Go and PostgreSQL: exact amounts, safe retries, holds, refunds, reports and webhooks. Use it as a library or run it as a service.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231d5a9e'/%3E%3Cpath d='M8 9h16M8 16h16M8 23h16M16 6v20' stroke='white' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E">
+<!-- Generated from README.md by tools/site/build.py. Edit the README or the template, then run `make site`. -->
+<title>ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+html, body { margin: 0; }
+img { max-width: 100%; }
+/* Layout: a ledger book. Sticky contents column on the left, the README as one
+   readable column on the right; tables and code may run wider than the prose. */
+:root {
+  --paper: #f5f7f8;
+  --sheet: #ffffff;
+  --ink: #14202a;
+  --muted: #566774;
+  --rule: #d5dde3;
+  --rule-strong: #b8c4cc;
+  --accent: #1d5a9e;
+  --accent-soft: #e3ecf6;
+  --code-bg: #eef2f4;
+  --debit: #a63d2b;
+  --credit: #2a7148;
+  --hl-key: #7a3e9d;
+  --hl-str: #2a7148;
+  --hl-num: #a0561c;
+  --hl-com: #7b8a95;
+  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --font-body: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --step--1: 0.8125rem;
+  --step-0: 0.9688rem;
+  --step-1: 1.1875rem;
+  --step-2: 1.5rem;
+  --step-3: 2.125rem;
+  --step-4: 3.25rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0e151b; --sheet: #131c23; --ink: #e2e9ee; --muted: #93a2ae; --rule: #24313b; --rule-strong: #34444f;
+    --accent: #7cb0ea; --accent-soft: #1a2a3b; --code-bg: #17222b; --debit: #e48470; --credit: #6fc596;
+    --hl-key: #c79be8; --hl-str: #8fd3a8; --hl-num: #e8b07c; --hl-com: #7d8e9a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0e151b; --sheet: #131c23; --ink: #e2e9ee; --muted: #93a2ae; --rule: #24313b; --rule-strong: #34444f;
+  --accent: #7cb0ea; --accent-soft: #1a2a3b; --code-bg: #17222b; --debit: #e48470; --credit: #6fc596;
+  --hl-key: #c79be8; --hl-str: #8fd3a8; --hl-num: #e8b07c; --hl-com: #7d8e9a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 var(--step-0)/1.65 var(--font-body);
+  padding-inline: 16px;
+  padding-block: 0 4rem;
+}
+a { color: var(--accent); text-underline-offset: 2px; text-decoration-thickness: 1px; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+/* Header */
+.masthead {
+  max-width: 76rem;
+  margin: 0 auto;
+  padding-block: 3rem 2.5rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 3rem;
+  align-items: center;
+  border-bottom: 1px solid var(--rule);
+}
+.eyebrow {
+  font: 500 var(--step--1)/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: flex; flex-wrap: wrap; gap: 0.5rem 1rem;
+}
+.masthead h1 {
+  font: 700 var(--step-4)/1 var(--font-display);
+  letter-spacing: -0.01em;
+  margin: 0.9rem 0 0.75rem;
+}
+.lede { font-size: var(--step-1); line-height: 1.5; color: var(--muted); max-width: 36rem; margin: 0 0 1.5rem; text-wrap: pretty; }
+.lede strong { color: var(--ink); font-weight: 500; }
+.install {
+  display: inline-flex; align-items: center; gap: 0.75rem; max-width: 100%;
+  font: 400 var(--step--1)/1 var(--font-mono);
+  background: var(--sheet); border: 1px solid var(--rule-strong); border-radius: 6px;
+  padding: 0.6rem 0.6rem 0.6rem 0.9rem;
+}
+.site-nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; margin: 0 0 1.25rem; font-weight: 500; }
+.site-nav a { text-decoration: none; }
+.site-nav a:hover { text-decoration: underline; }
+.install code { overflow-x: auto; white-space: nowrap; }
+.install .copy { position: static; }
+
+/* The journal entry: the README's own deposit, as a book-keeper would write it. */
+.journal {
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 1.25rem 1.25rem 1rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+}
+.journal-head { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; font: 500 var(--step--1)/1.3 var(--font-mono); color: var(--muted); margin-bottom: 0.75rem; }
+.journal table { width: 100%; border-collapse: collapse; font-size: var(--step-0); }
+.journal th { font: 600 var(--step--1)/1 var(--font-display); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); text-align: left; padding: 0 0 0.5rem; border-bottom: 2px solid var(--ink); }
+.journal th.num, .journal td.num { text-align: right; }
+.journal td { padding: 0.55rem 0; border-bottom: 1px solid var(--rule); font-family: var(--font-mono); font-size: var(--step--1); }
+.journal td.debit { color: var(--debit); }
+.journal td.credit { color: var(--credit); }
+.journal tr.total td { border-bottom: 3px double var(--ink); font-weight: 500; color: var(--ink); }
+.journal-foot { margin: 0.75rem 0 0; font-size: var(--step--1); color: var(--muted); line-height: 1.5; }
+.balanced { color: var(--credit); font-weight: 600; }
+
+/* Body: contents column + document */
+.layout {
+  max-width: 76rem;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 13.5rem minmax(0, 1fr);
+  gap: 3.5rem;
+  padding-top: 2.5rem;
+}
+.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 1.5rem); align-self: start; }
+.toc h2 { font: 600 var(--step--1)/1 var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 0.75rem; }
+.toc ol { list-style: none; margin: 0; padding: 0; border-left: 1px solid var(--rule); counter-reset: none; }
+.toc a { display: block; padding: 0.3rem 0 0.3rem 0.9rem; margin-left: -1px; border-left: 2px solid transparent; color: var(--muted); text-decoration: none; font-size: var(--step--1); line-height: 1.35; }
+.toc a:hover { color: var(--ink); }
+.toc a[aria-current="true"] { color: var(--accent); border-left-color: var(--accent); font-weight: 500; }
+
+.doc { min-width: 0; max-width: 54rem; }
+.doc > p, .doc > ul, .doc li { max-width: 46rem; }
+.doc h2 {
+  font: 600 var(--step-3)/1.15 var(--font-display);
+  letter-spacing: -0.005em;
+  margin: 3.5rem 0 1rem;
+  padding-top: 1.25rem;
+  border-top: 2px solid var(--ink);
+  text-wrap: balance;
+  scroll-margin-top: 1.5rem;
+}
+.doc h2:first-child { margin-top: 0; }
+.doc h3 { font: 600 var(--step-2)/1.2 var(--font-display); margin: 2.5rem 0 0.75rem; text-wrap: balance; scroll-margin-top: 1.5rem; }
+.doc h4 { font: 600 var(--step-1)/1.3 var(--font-display); margin: 2rem 0 0.5rem; scroll-margin-top: 1.5rem; }
+.doc p { margin: 0 0 1rem; text-wrap: pretty; }
+.doc ul { margin: 0 0 1.25rem; padding-left: 1.25rem; }
+.doc li { margin-bottom: 0.45rem; }
+.doc li::marker { color: var(--rule-strong); }
+.doc li > ul { margin: 0.4rem 0 0.2rem; }
+.doc strong { font-weight: 600; }
+.doc :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  background: var(--code-bg);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  overflow-wrap: anywhere;
+}
+
+/* Tables read like ledger pages: ruled rows, a heavy rule under the header. */
+.table { overflow-x: auto; margin: 0 0 1.5rem; border: 1px solid var(--rule); border-radius: 6px; background: var(--sheet); }
+.table table { width: 100%; border-collapse: collapse; font-size: var(--step--1); line-height: 1.5; font-variant-numeric: tabular-nums; }
+.table th { font: 600 var(--step--1)/1.3 var(--font-display); text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); text-align: left; padding: 0.7rem 0.9rem; border-bottom: 2px solid var(--rule-strong); white-space: nowrap; }
+.table td { padding: 0.6rem 0.9rem; border-top: 1px solid var(--rule); vertical-align: top; }
+.table tbody tr:first-child td { border-top: 0; }
+.table td:first-child { white-space: nowrap; }
+.table td code { white-space: nowrap; overflow-wrap: normal; }
+
+/* Code */
+.code { margin: 0 0 1.5rem; border: 1px solid var(--rule); border-radius: 6px; background: var(--code-bg); min-width: 0; }
+.code figcaption { display: flex; justify-content: space-between; align-items: center; padding: 0.35rem 0.5rem 0.35rem 0.9rem; border-bottom: 1px solid var(--rule); font: 500 0.75rem/1 var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.code pre { margin: 0; padding: 0.9rem; overflow-x: auto; }
+.code code { font: 400 var(--step--1)/1.6 var(--font-mono); color: var(--ink); tab-size: 4; }
+.copy {
+  font: 500 0.75rem/1 var(--font-body); letter-spacing: 0.02em; text-transform: none;
+  color: var(--ink); background: var(--sheet); border: 1px solid var(--rule-strong); border-radius: 4px;
+  padding: 0.35rem 0.6rem; cursor: pointer;
+}
+.copy:hover { border-color: var(--accent); color: var(--accent); }
+.copy[data-done] { color: var(--credit); border-color: var(--credit); }
+
+/* Syntax colours from the theme tokens, so both themes stay readable. */
+.hljs-keyword, .hljs-built_in, .hljs-selector-tag, .hljs-section { color: var(--hl-key); }
+.hljs-string, .hljs-attr + .hljs-string { color: var(--hl-str); }
+.hljs-number, .hljs-literal { color: var(--hl-num); }
+.hljs-comment { color: var(--hl-com); font-style: italic; }
+.hljs-attr, .hljs-attribute, .hljs-variable, .hljs-template-variable { color: var(--accent); }
+.hljs-title, .hljs-title.function_ { color: var(--ink); font-weight: 500; }
+.hljs-meta { color: var(--muted); }
+
+footer.page-foot { max-width: 76rem; margin: 4rem auto 0; padding-top: 1.25rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: var(--step--1); display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; justify-content: space-between; }
+
+@media (max-width: 960px) {
+  .masthead { grid-template-columns: minmax(0, 1fr); gap: 2rem; padding-block: 2rem 2rem; }
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; padding-top: 1.5rem; }
+  .toc { position: static; }
+  .toc ol { border-left: 0; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .toc a { border: 1px solid var(--rule); border-radius: 999px; padding: 0.3rem 0.75rem; margin: 0; background: var(--sheet); }
+  .toc a[aria-current="true"] { border-color: var(--accent); }
+}
+@media (max-width: 520px) {
+  :root { --step-4: 2.5rem; --step-3: 1.75rem; --step-2: 1.3rem; }
+  .journal td, .journal th { font-size: 0.75rem; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+  .copy, .toc a { transition: color .15s, border-color .15s; }
+}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div>
+    <div class="eyebrow"><span>Go library + HTTP service</span><span>PostgreSQL</span><span>Apache-2.0</span></div>
+    <h1>ledger</h1>
+    <p class="lede">A double-entry ledger for Go and PostgreSQL. <strong>Every transaction balances, entries never change, and amounts are exact to 78 digits</strong>, enforced by the database itself. Use it inside your application, or run it as <code>ledgerd</code>.</p>
+    <nav class="site-nav" aria-label="Site">
+      <a href="api.html">API reference</a>
+      <a href="https://github.com/otyang/ledger/blob/main/docs/guide.md">Beginner guide</a>
+      <a href="https://github.com/otyang/ledger/blob/main/docs/architecture.md">Architecture</a>
+      <a href="https://github.com/otyang/ledger">GitHub</a>
+    </nav>
+    <div class="install"><code id="install-cmd">go get github.com/otyang/ledger</code><button type="button" class="copy" data-copy="install-cmd">Copy</button></div>
+  </div>
+  <figure class="journal" aria-label="Example journal entry">
+    <div class="journal-head"><span>txn · deposit-1</span><span>USD · 2 decimals</span></div>
+    <table>
+      <thead><tr><th>Account</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead>
+      <tbody>
+        <tr><td>@world</td><td class="num debit">5,403.23</td><td class="num"></td></tr>
+        <tr><td>acc_alice</td><td class="num"></td><td class="num credit">5,403.23</td></tr>
+        <tr class="total"><td>Total</td><td class="num">5,403.23</td><td class="num">5,403.23</td></tr>
+      </tbody>
+    </table>
+    <figcaption class="journal-foot">One transaction, two entries. Stored as <code>540323</code> cents each side. Debits equal credits, so the books stay <span class="balanced">balanced</span>.</figcaption>
+  </figure>
+</header>
+
+<div class="layout">
+  <nav class="toc" aria-label="Contents">
+    <h2>Contents</h2>
+    <ol>
+<li><a href="#documentation">Documentation</a></li>
+<li><a href="#quick-start">Quick start</a></li>
+<li><a href="#configuration">Configuration</a></li>
+<li><a href="#http-api">HTTP API</a></li>
+<li><a href="#go-library">Go library</a></li>
+<li><a href="#concepts">Concepts</a></li>
+<li><a href="#guarantees">Guarantees</a></li>
+<li><a href="#operations">Operations</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+<li><a href="#development">Development</a></li>
+<li><a href="#contributors">Contributors</a></li>
+<li><a href="#license">License</a></li>
+    </ol>
+  </nav>
+  <main class="doc">
+<ul><li><strong>Correct by construction.</strong> Every transaction balances, entries are immutable, and balances can't drift: the database enforces these rules itself, independent of the Go code.</li><li><strong>Exact amounts.</strong> Whole numbers of a currency's smallest unit, up to 78 digits, so fiat cents and 18-decimal crypto tokens (wei) both fit. Nothing is ever rounded.</li><li><strong>Decimals when you want them.</strong> Send <code>&quot;5403.23&quot;</code>; the ledger converts it using the currency's registered decimals.</li><li><strong>Safe to retry.</strong> Every write is idempotent on a reference you choose.</li><li><strong>Holds, partial captures and refunds</strong>, with refunds that can never exceed the original, even under concurrency.</li><li><strong>Fast under contention.</strong> Busy system accounts such as <code>@world</code> can be "untracked" so they never become a lock bottleneck.</li><li><strong>Account controls.</strong> Freeze an account (money can still arrive, none can leave), close it for good, or give it an overdraft limit.</li><li><strong>Holds that expire</strong>, like real card authorizations, so forgotten holds don't lock money forever.</li><li><strong>Batches and currency exchange.</strong> Post a payroll run atomically, or convert between currencies with the rate recorded.</li><li><strong>Reporting.</strong> Search transactions, trial balance, balance sheet, income statement, account statements as CSV, and period close.</li><li><strong>Integrations.</strong> An event feed and signed webhooks for every change; health checks and Prometheus metrics for operations.</li></ul>
+<h2 id="documentation">Documentation</h2>
+<div class="table"><table><thead><tr><th>Page</th><th>Read it to</th></tr></thead><tbody><tr><td><a href="https://github.com/otyang/ledger/blob/main/docs/guide.md" target="_blank" rel="noopener">Beginner guide</a></td><td>Understand double-entry bookkeeping and this ledger through a worked example: top-up, purchase with a fee, refund, card hold, withdrawal</td></tr><tr><td><a href="https://github.com/otyang/ledger/blob/main/docs/api.md" target="_blank" rel="noopener">API reference</a></td><td>Look up every endpoint's fields, status codes, errors and real example responses</td></tr><tr><td><a href="https://github.com/otyang/ledger/blob/main/docs/architecture.md" target="_blank" rel="noopener">Architecture and internals</a></td><td>Learn how posting, locking, idempotency, holds, refunds and the database rules work, before changing the code</td></tr></tbody></table></div>
+<p>This README is the overview. The same documentation is published as a website at <a href="https://otyang.github.io/ledger/" target="_blank" rel="noopener">otyang.github.io/ledger</a>, including an interactive <a href="https://otyang.github.io/ledger/api.html" target="_blank" rel="noopener">HTTP API reference</a> generated from the <a href="https://github.com/otyang/ledger/blob/main/docs/openapi.yaml" target="_blank" rel="noopener">OpenAPI 3.0 specification</a>.</p>
+<h2 id="quick-start">Quick start</h2>
+<p>You need Go 1.25+ and PostgreSQL (any recent version; tests run on 18).</p>
+<h3 id="run-locally">Run locally</h3>
+<figure class="code"><figcaption><span>shell</span><button type="button" class="copy">Copy</button></figcaption><pre><code class="language-bash">createdb ledger
+cp .env.example .env        # then edit LEDGER_DATABASE_URL and LEDGER_API_TOKEN
+make run</code></pre></figure>
+<p>Or without the Makefile:</p>
+<figure class="code"><figcaption><span>shell</span><button type="button" class="copy">Copy</button></figcaption><pre><code class="language-bash">LEDGER_DATABASE_URL=&quot;postgres://postgres@localhost:5432/ledger?sslmode=disable&quot; \
+LEDGER_API_TOKEN=change-me \
+go run ./cmd/ledgerd</code></pre></figure>
+<p>The service applies its database migrations on startup, then logs <code>ledgerd listening</code> on port <strong>7710</strong>.</p>
+<h3 id="run-with-docker">Run with Docker</h3>
+<figure class="code"><figcaption><span>shell</span><button type="button" class="copy">Copy</button></figcaption><pre><code class="language-bash">make docker-build VERSION=v0.1.0
+docker run --rm -p 7710:7710 \
+  -e LEDGER_DATABASE_URL=&quot;postgres://postgres@host.docker.internal:5432/ledger?sslmode=disable&quot; \
+  -e LEDGER_API_TOKEN=change-me \
+  ledgerd:v0.1.0</code></pre></figure>
+<p><code>host.docker.internal</code> reaches a Postgres running on your machine (Docker Desktop). The image contains only the static binary, runs as a non-root user, and has no shell.</p>
+<h3 id="first-requests">First requests</h3>
+<figure class="code"><figcaption><span>shell</span><button type="button" class="copy">Copy</button></figcaption><pre><code class="language-bash">T=&quot;Authorization: Bearer change-me&quot;
+API=http://localhost:7710
+
+curl -H &quot;$T&quot; -X POST $API/currencies -d &#x27;{&quot;code&quot;: &quot;USD&quot;, &quot;decimals&quot;: 2}&#x27;
+curl -H &quot;$T&quot; -X POST $API/ledgers    -d &#x27;{&quot;name&quot;: &quot;main&quot;}&#x27;
+curl -H &quot;$T&quot; -X POST $API/accounts   -d &#x27;{
+  &quot;ledger_id&quot;: &quot;ldg_…&quot;,
+  &quot;currency&quot;: &quot;USD&quot;,
+  &quot;indicator&quot;: &quot;@world&quot;,
+  &quot;allow_negative&quot;: true,
+  &quot;untracked&quot;: true
+}&#x27;
+curl -H &quot;$T&quot; -X POST $API/accounts   -d &#x27;{&quot;ledger_id&quot;: &quot;ldg_…&quot;, &quot;currency&quot;: &quot;USD&quot;}&#x27;
+
+# Deposit 5403.23 USD from outside the ledger into the new account
+curl -H &quot;$T&quot; -X POST $API/transactions -d &#x27;{
+  &quot;reference&quot;: &quot;deposit-1&quot;,
+  &quot;currency&quot;: &quot;USD&quot;,
+  &quot;legs&quot;: [
+    {
+      &quot;account_id&quot;: &quot;acc_&lt;world&gt;&quot;,
+      &quot;direction&quot;: &quot;debit&quot;,
+      &quot;value&quot;: &quot;5403.23&quot;
+    },
+    {
+      &quot;account_id&quot;: &quot;acc_&lt;alice&gt;&quot;,
+      &quot;direction&quot;: &quot;credit&quot;,
+      &quot;value&quot;: &quot;5403.23&quot;
+    }
+  ]
+}&#x27;
+
+curl -H &quot;$T&quot; &quot;$API/accounts/acc_&lt;alice&gt;&quot;</code></pre></figure>
+<h2 id="configuration">Configuration</h2>
+<p><code>ledgerd</code> is configured with environment variables. <code>make run</code> also reads them from a <code>.env</code> file (see <a href="https://github.com/otyang/ledger/blob/main/.env.example" target="_blank" rel="noopener">.env.example</a>).</p>
+<div class="table"><table><thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead><tbody><tr><td><code>LEDGER_DATABASE_URL</code></td><td><em>(required)</em></td><td>Postgres connection URL. All tables go in a <code>ledger</code> schema inside this database, so it can be shared with other applications.</td></tr><tr><td><code>LEDGER_API_TOKEN</code></td><td><em>(required)</em></td><td>Clients must send <code>Authorization: Bearer &lt;token&gt;</code>. One token grants access to all ledgers.</td></tr><tr><td><code>LEDGER_ADDR</code></td><td><code>:7710</code></td><td>Listen address.</td></tr><tr><td><code>LEDGER_REQUEST_TIMEOUT</code></td><td><code>10s</code></td><td>Upper bound for each request, including time spent waiting for account locks.</td></tr><tr><td><code>LEDGER_INSECURE_NO_AUTH</code></td><td><code>false</code></td><td>Set to <code>true</code> to run without a token. Only do this when something in front of the service already authenticates requests.</td></tr><tr><td><code>LEDGER_RATE_LIMIT</code></td><td><code>0</code> (off)</td><td>Requests per second allowed per client IP. Excess requests get <code>429 rate_limited</code>. Behind a proxy, all clients share its IP, so limit at the proxy instead.</td></tr><tr><td><code>LEDGER_RATE_BURST</code></td><td>the rate</td><td>How many requests a client may send at once before the rate applies.</td></tr><tr><td><code>LEDGER_HOLD_EXPIRY_INTERVAL</code></td><td><code>1m</code></td><td>How often expired holds are released. <code>0</code> disables it. Holds without <code>expires_at</code> are never touched.</td></tr><tr><td><code>LEDGER_SNAPSHOT_INTERVAL</code></td><td><code>5m</code></td><td>How often untracked accounts' balance snapshots are refreshed, which keeps reading their balance fast. <code>0</code> disables it.</td></tr><tr><td><code>LEDGER_WEBHOOK_URL</code></td><td><em>(off)</em></td><td>Send every <a href="https://github.com/otyang/ledger/blob/main/docs/api.md#events" target="_blank" rel="noopener">event</a> to this URL.</td></tr><tr><td><code>LEDGER_WEBHOOK_SECRET</code></td><td></td><td>Required with <code>LEDGER_WEBHOOK_URL</code>: signs each request so the receiver can verify it.</td></tr><tr><td><code>LEDGER_SHUTDOWN_DRAIN</code></td><td><code>0</code></td><td>On shutdown, keep serving this long with <code>/readyz</code> failing, so a load balancer stops sending traffic before the listener closes. <code>10s</code> suits most load balancers.</td></tr></tbody></table></div>
+<p><code>ledgerd -version</code> prints the version the binary was built with.</p>
+<h2 id="http-api">HTTP API</h2>
+<h3 id="conventions">Conventions</h3>
+<ul><li><strong>Authentication.</strong> Every request needs <code>Authorization: Bearer &lt;LEDGER_API_TOKEN&gt;</code>. Without it: <code>401 unauthorized</code>.</li><li><strong>Request bodies</strong> are JSON. Unknown fields are rejected, so typos fail loudly instead of being ignored.</li><li><strong>IDs</strong> are <code>&lt;prefix&gt;_&lt;uuidv7&gt;</code>: <code>ldg_</code> ledgers, <code>acc_</code> accounts, <code>txn_</code> transactions, <code>ent_</code> entries, <code>hld_</code> holds.</li><li><strong>Amounts</strong> are whole numbers of the currency's smallest unit (cents for USD, wei for ETH), written as JSON strings so that large values keep every digit in JavaScript: <code>&quot;amount&quot;: &quot;540323&quot;</code>. Requests may also send JSON integers.</li><li><strong>Values</strong> are the same amounts as decimals: <code>&quot;value&quot;: &quot;5403.23&quot;</code>. Anywhere a request takes an <code>amount</code>, you can send a <code>value</code> instead. Values are converted with the currency's registered decimals and <strong>never rounded</strong>: <code>&quot;5403.234&quot;</code> USD is rejected. If you send both, they must agree.</li><li><strong>Responses</strong> include both forms for every amount: <code>amount</code>/<code>value</code>, <code>balance</code>/<code>balance_value</code>, <code>balance_after</code>/<code>balance_after_value</code>, and so on.</li><li><strong>Idempotency.</strong> Transactions, holds and refunds take a <code>reference</code>, unique per ledger. Sending the same request again returns the original result (same status, same body). Reusing a reference for a <em>different</em> request returns <code>409 reference_conflict</code>. A request written with <code>value</code> and the same request written with <code>amount</code> count as the same request.</li></ul>
+<h3 id="endpoints">Endpoints</h3>
+<div class="table"><table><thead><tr><th>Method</th><th>Path</th><th>Success</th><th>Description</th></tr></thead><tbody><tr><td><code>POST</code></td><td><code>/currencies</code></td><td>201</td><td>Register a currency and its decimals</td></tr><tr><td><code>GET</code></td><td><code>/currencies/{code}</code></td><td>200</td><td>Get a currency</td></tr><tr><td><code>POST</code></td><td><code>/ledgers</code></td><td>201</td><td>Create a ledger</td></tr><tr><td><code>GET</code></td><td><code>/ledgers/{id}</code></td><td>200</td><td>Get a ledger</td></tr><tr><td><code>POST</code></td><td><code>/accounts</code></td><td>201</td><td>Create an account</td></tr><tr><td><code>GET</code></td><td><code>/accounts/{id}</code></td><td>200</td><td>Get an account with its balances</td></tr><tr><td><code>GET</code></td><td><code>/accounts/{id}/entries?after=&amp;limit=</code></td><td>200</td><td>List an account's entries, oldest first</td></tr><tr><td><code>GET</code></td><td><code>/accounts/{id}/balance?at=</code></td><td>200</td><td>Balance at a point in time (RFC 3339; default now)</td></tr><tr><td><code>POST</code></td><td><code>/transactions</code></td><td>201</td><td>Post a transaction</td></tr><tr><td><code>GET</code></td><td><code>/transactions/{id}</code></td><td>200</td><td>Get a transaction with its entries</td></tr><tr><td><code>POST</code></td><td><code>/transactions/{id}/refunds</code></td><td>201</td><td>Refund all or part of a transaction</td></tr><tr><td><code>GET</code></td><td><code>/transactions/{id}/refundable</code></td><td>200</td><td>What is left to refund</td></tr><tr><td><code>POST</code></td><td><code>/holds</code></td><td>201</td><td>Reserve funds</td></tr><tr><td><code>GET</code></td><td><code>/holds/{id}</code></td><td>200</td><td>Get a hold</td></tr><tr><td><code>POST</code></td><td><code>/holds/{id}/commit</code></td><td>201</td><td>Post all or part of a hold as a transaction</td></tr><tr><td><code>POST</code></td><td><code>/holds/{id}/void</code></td><td>200</td><td>Release a hold</td></tr><tr><td><code>PATCH</code></td><td><code>/accounts/{id}</code></td><td>200</td><td>Freeze, unfreeze or close; set the overdraft limit, type or metadata</td></tr><tr><td><code>GET</code></td><td><code>/accounts/{id}/statement?from=&amp;to=</code></td><td>200</td><td>Account statement: opening balance, lines, closing balance</td></tr><tr><td><code>GET</code></td><td><code>/accounts/{id}/statement.csv?from=&amp;to=</code></td><td>200</td><td>The same statement as CSV</td></tr><tr><td><code>PATCH</code></td><td><code>/transactions/{id}</code></td><td>200</td><td>Update a transaction's metadata</td></tr><tr><td><code>POST</code></td><td><code>/transactions/{id}/reversals</code></td><td>201</td><td>Undo everything left of a transaction, with a reason</td></tr><tr><td><code>POST</code></td><td><code>/batches</code></td><td>201</td><td>Post several transactions at once, all or nothing</td></tr><tr><td><code>GET</code></td><td><code>/batches/{id}</code></td><td>200</td><td>Get a batch with its transactions</td></tr><tr><td><code>POST</code></td><td><code>/exchanges</code></td><td>201</td><td>Convert between currencies</td></tr><tr><td><code>GET</code></td><td><code>/ledgers/{id}/transactions</code></td><td>200</td><td>Search transactions by account, date and metadata</td></tr><tr><td><code>GET</code></td><td><code>/ledgers/{id}/trial-balance?at=</code></td><td>200</td><td>Every account's balance, totals per currency</td></tr><tr><td><code>GET</code></td><td><code>/ledgers/{id}/balance-sheet?currency=&amp;at=</code></td><td>200</td><td>Assets, liabilities, equity</td></tr><tr><td><code>GET</code></td><td><code>/ledgers/{id}/income-statement?currency=&amp;from=&amp;to=</code></td><td>200</td><td>Revenue, expenses, net income</td></tr><tr><td><code>POST</code></td><td><code>/ledgers/{id}/periods</code></td><td>201</td><td>Close the books through a date</td></tr><tr><td><code>GET</code></td><td><code>/ledgers/{id}/periods</code></td><td>200</td><td>List closed periods</td></tr><tr><td><code>GET</code></td><td><code>/events?after=&amp;ledger_id=</code></td><td>200</td><td>Every change, in order, for integrations</td></tr><tr><td><code>GET</code></td><td><code>/healthz</code></td><td>200</td><td>The process is alive (no token needed)</td></tr><tr><td><code>GET</code></td><td><code>/readyz</code></td><td>200</td><td>Ready to serve: database reachable, schema up to date (no token needed)</td></tr><tr><td><code>GET</code></td><td><code>/metrics</code></td><td>200</td><td>Prometheus metrics</td></tr></tbody></table></div>
+<p>The <a href="https://github.com/otyang/ledger/blob/main/docs/api.md" target="_blank" rel="noopener">API reference</a> documents every field and response.</p>
+<h4 id="currencies">Currencies</h4>
+<figure class="code"><figcaption><span>http</span><button type="button" class="copy">Copy</button></figcaption><pre><code class="language-http">POST /currencies
+
+{
+  &quot;code&quot;: &quot;USD&quot;,
+  &quot;decimals&quot;: 2
+}</code></pre></figure>
+<p><code>code</code> is 3–10 uppercase letters or digits (<code>USD</code>, <code>ETH</code>, <code>USDC</code>). <code>decimals</code> (0–36) is required: it is how many digits follow the decimal point, and <strong>it can never change</strong> once registered, because every stored amount would change meaning. Registering the same code with the same decimals again is a no-op; different decimals return <code>409 currency_conflict</code>.</p>
+<figure class="code"><figcaption><span>json</span><button type="button" class="copy">Copy</button></figcaption><pre><code class="language-json">{
+  &quot;code&quot;: &quot;USD&quot;,
+  &quot;decimals&quot;: 2,
+  &quot;created_at&quot;: &quot;2026-10-12T12:51:07.593863Z&quot;
+}</code></pre></figure>
+<h4 id="ledgers-and-accounts">Ledgers and accounts</h4>
+<figure class="code"><figcaption><span>http</span><button type="button" class="copy">Copy</button></figcaption><pre><code class="language-http">POST /ledgers
+
+{
+  &quot;name&quot;: &quot;main&quot;,
+  &quot;metadata&quot;: {
+    &quot;team&quot;: &quot;payments&quot;
+  }
+}</code></pre></figure>
+<figure class="code"><figcaption><span>http</span><button type="button" class="copy">Copy</button></figcaption><pre><code class="language-http">POST /accounts
+
+{
+  &quot;ledger_id&quot;: &quot;ldg_…&quot;,
+  &quot;currency&quot;: &quot;USD&quot;,
+  &quot;indicator&quot;: &quot;@world&quot;,
+  &quot;allow_negative&quot;: true,
+  &quot;untracked&quot;: true
+}</code></pre></figure>
+<div class="table"><table><thead><tr><th>Account field</th><th>Description</th></tr></thead><tbody><tr><td><code>currency</code></td><td>Must be registered first, otherwise <code>422 unknown_currency</code>. Can't change later.</td></tr><tr><td><code>indicator</code></td><td>Optional name such as <code>@world</code>, unique per ledger and currency.</td></tr><tr><td><code>allow_negative</code></td><td>Whether the balance may go below zero. Default <code>false</code>.</td></tr><tr><td><code>untracked</code></td><td>High-traffic accounts: no locking, balance computed on read. Requires <code>allow_negative</code>. See <a href="#concepts">Untracked accounts</a>.</td></tr><tr><td><code>metadata</code></td><td>Any JSON object.</td></tr></tbody></table></div>
+<figure class="code"><figcaption><span>json</span><button type="button" class="copy">Copy</button></figcaption><pre><code class="language-json">{
+  &quot;id&quot;: &quot;acc_…&quot;,
+  &quot;ledger_id&quot;: &quot;ldg_…&quot;,
+  &quot;currency&quot;: &quot;USD&quot;,
+  &quot;allow_negative&quot;: false,
+  &quot;untracked&quot;: false,
+  &quot;credit_total&quot;: &quot;540323&quot;,
+  &quot;credit_total_value&quot;: &quot;5403.23&quot;,
+  &quot;debit_total&quot;: &quot;0&quot;,
+  &quot;debit_total_value&quot;: &quot;0.00&quot;,
+  &quot;balance&quot;: &quot;540323&quot;,
+  &quot;balance_value&quot;: &quot;5403.23&quot;,
+  &quot;pending_debit&quot;: &quot;0&quot;,
+  &quot;pending_debit_value&quot;: &quot;0.00&quot;,
+  &quot;pending_credit&quot;: &quot;0&quot;,
+  &quot;pending_credit_value&quot;: &quot;0.00&quot;,
+  &quot;version&quot;: 1,
+  &quot;created_at&quot;: &quot;…&quot;,
+  &quot;updated_at&quot;: &quot;…&quot;
+}</code></pre></figure>
+<p><code>GET /accounts/{id}/entries</code> pages with <code>after=&lt;last entry id&gt;</code> and <code>limit</code> (default 100, max 1000), and returns <code>{&quot;entries&quot;: [...]}</code>. <code>GET /accounts/{id}/balance?at=2026-10-12T12:00:00Z</code> returns <code>{&quot;account_id&quot;, &quot;balance&quot;, &quot;balance_value&quot;, &quot;at&quot;}</code>.</p>
+<h4 id="transactions">Transactions</h4>
+<figure class="code"><figcaption><span>http</span><button type="button" class="copy">Copy</button></figcaption><pre><code class="language-http">POST /transactions
+
+{
+  &quot;reference&quot;: &quot;order-8841&quot;,
+  &quot;currency&quot;: &quot;USD&quot;,
+  &quot;description&quot;: &quot;Concert ticket&quot;,
+  &quot;metadata&quot;: {
+    &quot;customer_id&quot;: &quot;c_77&quot;
+  },
+  &quot;legs&quot;: [
+    {
+      &quot;account_id&quot;: &quot;acc_&lt;alice&gt;&quot;,
+      &quot;direction&quot;: &quot;debit&quot;,
+      &quot;value&quot;: &quot;50.00&quot;
+    },
+    {
+      &quot;account_id&quot;: &quot;acc_&lt;venue&gt;&quot;,
+      &quot;direction&quot;: &quot;credit&quot;,
+      &quot;value&quot;: &quot;47.00&quot;
+    },
+    {
+      &quot;account_id&quot;: &quot;acc_&lt;platform&gt;&quot;,
+      &quot;direction&quot;: &quot;credit&quot;,
+      &quot;value&quot;: &quot;3.00&quot;
+    }
+  ]
+}</code></pre></figure>
+<p>A transaction needs at least two legs across at least two accounts, all in the transaction's currency and ledger, and its debits must equal its credits. A <strong>debit</strong> lowers an account's balance and a <strong>credit</strong> raises it. The response contains one entry per leg:</p>
+<figure class="code"><figcaption><span>json</span><button type="button" class="copy">Copy</button></figcaption><pre><code class="language-json">{
+  &quot;id&quot;: &quot;txn_…&quot;,
+  &quot;ledger_id&quot;: &quot;ldg_…&quot;,
+  &quot;reference&quot;: &quot;order-8841&quot;,
+  &quot;status&quot;: &quot;posted&quot;,
+  &quot;currency&quot;: &quot;USD&quot;,
+  &quot;description&quot;: &quot;Concert ticket&quot;,
+  &quot;metadata&quot;: {
+    &quot;customer_id&quot;: &quot;c_77&quot;
+  },
+  &quot;created_at&quot;: &quot;…&quot;,
+  &quot;entries&quot;: [
+    {
+      &quot;id&quot;: &quot;ent_…&quot;,
+      &quot;transaction_id&quot;: &quot;txn_…&quot;,
+      &quot;account_id&quot;: &quot;acc_&lt;alice&gt;&quot;,
+      &quot;direction&quot;: &quot;debit&quot;,
+      &quot;amount&quot;: &quot;5000&quot;,
+      &quot;value&quot;: &quot;50.00&quot;,
+      &quot;balance_after&quot;: &quot;490323&quot;,
+      &quot;balance_after_value&quot;: &quot;4903.23&quot;,
+      &quot;account_version&quot;: 2,
+      &quot;created_at&quot;: &quot;…&quot;
+    },
+    {
+      &quot;id&quot;: &quot;ent_…&quot;,
+      &quot;transaction_id&quot;: &quot;txn_…&quot;,
+      &quot;account_id&quot;: &quot;acc_&lt;venue&gt;&quot;,
+      &quot;direction&quot;: &quot;credit&quot;,
+      &quot;amount&quot;: &quot;4700&quot;,
+      &quot;value&quot;: &quot;47.00&quot;,
+      &quot;balance_after&quot;: &quot;4700&quot;,
+      &quot;balance_after_value&quot;: &quot;47.00&quot;,
+      &quot;account_version&quot;: 1,
+      &quot;created_at&quot;: &quot;…&quot;
+    },
+    {
+      &quot;id&quot;: &quot;ent_…&quot;,
+      &quot;transaction_id&quot;: &quot;txn_…&quot;,
+      &quot;account_id&quot;: &quot;acc_&lt;platform&gt;&quot;,
+      &quot;direction&quot;: &quot;credit&quot;,
+      &quot;amount&quot;: &quot;300&quot;,
+      &quot;value&quot;: &quot;3.00&quot;,
+      &quot;balance_after&quot;: &quot;300&quot;,
+      &quot;balance_after_value&quot;: &quot;3.00&quot;,
+      &quot;account_version&quot;: 1,
+      &quot;created_at&quot;: &quot;…&quot;
+    }
+  ]
+}</code></pre></figure>
+<h4 id="refunds">Refunds</h4>
+<figure class="code"><figcaption><span>http</span><button type="button" class="copy">Copy</button></figcaption><pre><code class="language-http">POST /transactions/{id}/refunds
+
+{
+  &quot;reference&quot;: &quot;refund-1&quot;,
+  &quot;value&quot;: &quot;10.00&quot;
+}</code></pre></figure>
+<div class="table"><table><thead><tr><th>Body</th><th>Refunds</th></tr></thead><tbody><tr><td><code>{&quot;reference&quot;: &quot;…&quot;}</code></td><td>Everything not yet refunded</td></tr><tr><td><code>{&quot;reference&quot;: &quot;…&quot;, &quot;value&quot;: &quot;10.00&quot;}</code> or <code>&quot;amount&quot;</code></td><td>Part of a two-leg transaction</td></tr><tr><td><code>{&quot;reference&quot;: &quot;…&quot;, &quot;legs&quot;: [...]}</code></td><td>Specific legs of a multi-leg transaction, e.g. take money back from the merchant but not the fee account</td></tr></tbody></table></div>
+<p>An explicit zero (<code>&quot;0&quot;</code>, <code>&quot;0.00&quot;</code>) is rejected; it never means "everything". Refunds can't add up to more than the original (<code>422 refund_exceeded</code>). <code>GET /transactions/{id}/refundable</code> returns <code>{&quot;legs&quot;: [...]}</code>: what a full refund would post now.</p>
+<h4 id="holds">Holds</h4>
+<p>A hold reserves funds without moving them, like a card authorization. While it's pending, its debits reduce the source account's available balance (<code>balance - pending_debit</code>).</p>
+<figure class="code"><figcaption><span>http</span><button type="button" class="copy">Copy</button></figcaption><pre><code class="language-http">POST /holds
+
+{
+  &quot;reference&quot;: &quot;auth-9&quot;,
+  &quot;currency&quot;: &quot;USD&quot;,
+  &quot;legs&quot;: [
+    {
+      &quot;account_id&quot;: &quot;acc_&lt;alice&gt;&quot;,
+      &quot;direction&quot;: &quot;debit&quot;,
+      &quot;value&quot;: &quot;100.00&quot;
+    },
+    {
+      &quot;account_id&quot;: &quot;acc_&lt;bob&gt;&quot;,
+      &quot;direction&quot;: &quot;credit&quot;,
+      &quot;value&quot;: &quot;100.00&quot;
+    }
+  ]
+}</code></pre></figure>
+<figure class="code"><figcaption><span>http</span><button type="button" class="copy">Copy</button></figcaption><pre><code class="language-http">POST /holds/{id}/commit
+
+{
+  &quot;value&quot;: &quot;80.00&quot;
+}</code></pre></figure>
+<figure class="code"><figcaption><span>http</span><button type="button" class="copy">Copy</button></figcaption><pre><code class="language-http">POST /holds/{id}/void</code></pre></figure>
+<p>Commit with an empty body to post the whole hold, with <code>amount</code>/<code>value</code> for part of a two-leg hold, or with <code>legs</code> for part of a multi-leg one. Whatever isn't committed is released. A hold resolves exactly once: retrying the same commit returns the same transaction; anything else returns <code>409 hold_not_pending</code>. A hold only expires if it was given an <code>expires_at</code>: after that, commits return <code>409 hold_expired</code> and the funds are released.</p>
+<h3 id="errors">Errors</h3>
+<p>Errors are returned as:</p>
+<figure class="code"><figcaption><span>json</span><button type="button" class="copy">Copy</button></figcaption><pre><code class="language-json">{
+  &quot;error&quot;: {
+    &quot;code&quot;: &quot;insufficient_funds&quot;,
+    &quot;message&quot;: &quot;ledger: insufficient funds: account acc_…&quot;
+  }
+}</code></pre></figure>
+<p>Match on <code>code</code>; <code>message</code> is for humans and may change.</p>
+<div class="table"><table><thead><tr><th>HTTP</th><th><code>code</code></th><th>Meaning</th></tr></thead><tbody><tr><td>400</td><td><code>invalid_params</code></td><td>Malformed request: bad JSON, unknown field, invalid amount or value, too many decimals, zero amount</td></tr><tr><td>400</td><td><code>invalid_id</code></td><td>An ID doesn't have the expected <code>&lt;prefix&gt;_&lt;uuidv7&gt;</code> form</td></tr><tr><td>400</td><td><code>amount_overflow</code></td><td>An amount or an account total would exceed 78 digits</td></tr><tr><td>401</td><td><code>unauthorized</code></td><td>Missing or wrong bearer token</td></tr><tr><td>404</td><td><code>not_found</code></td><td>The resource in the URL doesn't exist</td></tr><tr><td>409</td><td><code>already_exists</code></td><td>An account with that indicator and currency already exists in the ledger</td></tr><tr><td>409</td><td><code>reference_conflict</code></td><td>The reference was already used for a different request</td></tr><tr><td>409</td><td><code>hold_not_pending</code></td><td>The hold is already committed or voided</td></tr><tr><td>409</td><td><code>currency_conflict</code></td><td>The currency is registered with different decimals</td></tr><tr><td>409</td><td><code>hold_expired</code></td><td>The hold passed its <code>expires_at</code></td></tr><tr><td>409</td><td><code>period_closed</code></td><td>The ledger's books are closed through a later date</td></tr><tr><td>422</td><td><code>unknown_reference</code></td><td>An account or ledger named in the body doesn't exist</td></tr><tr><td>422</td><td><code>unknown_currency</code></td><td>The currency isn't registered, or its decimals aren't yet</td></tr><tr><td>422</td><td><code>unbalanced</code></td><td>Debits don't equal credits</td></tr><tr><td>422</td><td><code>currency_mismatch</code></td><td>An account's currency differs from the transaction's</td></tr><tr><td>422</td><td><code>ledger_mismatch</code></td><td>The accounts belong to different ledgers</td></tr><tr><td>422</td><td><code>insufficient_funds</code></td><td>The available balance would go negative</td></tr><tr><td>422</td><td><code>refund_exceeded</code></td><td>The refund is larger than what's left to refund</td></tr><tr><td>422</td><td><code>account_frozen</code></td><td>Money can't leave a frozen account</td></tr><tr><td>422</td><td><code>account_closed</code></td><td>The account is closed</td></tr><tr><td>429</td><td><code>rate_limited</code></td><td>Too many requests from this client; <code>Retry-After</code> is set</td></tr><tr><td>503</td><td><code>retryable</code></td><td>A concurrent update got in the way. Retry the same request; <code>Retry-After</code> is set</td></tr><tr><td>503</td><td><code>timeout</code></td><td>The request exceeded <code>LEDGER_REQUEST_TIMEOUT</code>. Retry the same request; <code>Retry-After</code> is set</td></tr><tr><td>500</td><td><code>internal</code></td><td>Unexpected failure; details are logged by the server</td></tr></tbody></table></div>
+<p>Retrying after a 503, or after a network error, is always safe: the reference makes every write idempotent.</p>
+<h2 id="go-library">Go library</h2>
+<figure class="code"><figcaption><span>shell</span><button type="button" class="copy">Copy</button></figcaption><pre><code class="language-bash">go get github.com/otyang/ledger</code></pre></figure>
+<figure class="code"><figcaption><span>go</span><button type="button" class="copy">Copy</button></figcaption><pre><code class="language-go">import &quot;github.com/otyang/ledger&quot;
+
+db := ledger.OpenDB(&quot;postgres://localhost:5432/app?sslmode=disable&quot;) // or your own *bun.DB
+svc := ledger.New(db)
+if err := svc.Migrate(ctx); err != nil { ... }
+
+// Once per currency: how many decimals it has.
+svc.RegisterCurrency(ctx, ledger.CurrencyParams{Code: &quot;USD&quot;, Decimals: 2})
+
+l, _ := svc.CreateLedger(ctx, ledger.CreateLedgerParams{Name: &quot;main&quot;})
+world, _ := svc.EnsureIndicatorAccount(ctx, ledger.CreateAccountParams{
+	LedgerID: l.ID, Currency: &quot;USD&quot;, Indicator: &quot;@world&quot;, AllowNegative: true, Untracked: true,
+})
+alice, _ := svc.CreateAccount(ctx, ledger.CreateAccountParams{LedgerID: l.ID, Currency: &quot;USD&quot;})
+bob, _ := svc.CreateAccount(ctx, ledger.CreateAccountParams{LedgerID: l.ID, Currency: &quot;USD&quot;})
+
+// Amounts in minor units: 600000 cents is 6000.00 USD.
+svc.Post(ctx, ledger.Transfer(&quot;deposit-123&quot;, &quot;USD&quot;, world.ID, alice.ID, ledger.NewAmount(600000)))
+
+// The same kind of posting, written as a decimal: Alice pays Bob 5403.23 USD.
+svc.Post(ctx, ledger.PostParams{Reference: &quot;pay-1&quot;, Currency: &quot;USD&quot;, Legs: []ledger.Leg{
+	{AccountID: alice.ID, Direction: ledger.Debit, Value: &quot;5403.23&quot;},
+	{AccountID: bob.ID, Direction: ledger.Credit, Value: &quot;5403.23&quot;},
+}})
+
+// Reserve funds, then capture part of them; the rest is released.
+hold, _ := svc.CreateHold(ctx, ledger.HoldParams{Reference: &quot;auth-9&quot;, Currency: &quot;USD&quot;,
+	Legs: ledger.Transfer(&quot;&quot;, &quot;&quot;, alice.ID, bob.ID, ledger.NewAmount(1000)).Legs})
+txn, _ := svc.CommitHold(ctx, hold.ID, ledger.CommitHoldParams{Amount: ledger.NewAmount(800)})
+
+// Refund part of it, then the rest.
+svc.Refund(ctx, txn.ID, ledger.RefundParams{Reference: &quot;refund-1&quot;, Amount: ledger.NewAmount(300)})
+svc.Refund(ctx, txn.ID, ledger.RefundParams{Reference: &quot;refund-2&quot;})</code></pre></figure>
+<p>Match errors with <code>errors.Is</code> against the sentinels in <a href="https://github.com/otyang/ledger/blob/main/errors.go" target="_blank" rel="noopener">errors.go</a> (<code>ErrInsufficientFunds</code>, <code>ErrReferenceConflict</code>, …). <code>ErrRetryable</code> covers serialization failures, deadlocks, lock timeouts, and idempotency races that your snapshot can't see yet.</p>
+<h3 id="using-your-own-database-transaction">Using your own database transaction</h3>
+<p><code>PostTx</code>, <code>CreateHoldTx</code>, <code>CommitHoldTx</code>, <code>VoidHoldTx</code> and <code>RefundTx</code> run inside <strong>your</strong> <code>bun.Tx</code>, so ledger movements commit or roll back together with your own writes. <code>GetAccountTx</code>, <code>GetTransactionTx</code>, <code>GetHoldTx</code> and <code>RefundableTx</code> read inside it, including your uncommitted postings.</p>
+<ul><li>Each call runs in a savepoint, so a rejected operation (insufficient funds, a conflict) doesn't abort your transaction.</li><li>Your <code>ctx</code> deadline applies, including time spent waiting for account locks. If it expires mid-statement, the Postgres driver drops the connection: the call returns an error matching both <code>context.DeadlineExceeded</code> and <code>ErrTxAborted</code>, and your transaction can no longer commit. A call that returns an error never leaves a posting behind.</li><li>Repeatable read and serializable transactions work. When a concurrent change makes your snapshot stale, the call returns <code>ErrRetryable</code>; retry your whole transaction.</li></ul>
+<h3 id="testing-your-application">Testing your application</h3>
+<p><code>ledgertest.Run</code> in <code>TestMain</code>, then <code>ledgertest.NewDB(t)</code>, gives each test a fresh, migrated database: an embedded Postgres by default, or your own server via <code>LEDGER_TEST_DATABASE_URL</code>. Register the currencies your tests use with <code>RegisterCurrency</code>.</p>
+<h2 id="concepts">Concepts</h2>
+<ul><li><strong>Ledger</strong> (<code>ldg_</code>) groups accounts. A transaction or hold can only involve accounts from one ledger.</li><li><strong>Account</strong> (<code>acc_</code>) has one currency and a cached <code>balance = credit_total - debit_total</code>. It can't go negative unless <code>allow_negative</code> is set.</li><li><strong>Amounts</strong> are <code>ledger.Amount</code>: exact whole numbers of the currency's minor unit (cents for USD, wei for ETH), up to 78 digits, stored as <code>NUMERIC(78,0)</code>. That fits any 256-bit token amount. Build them with <code>NewAmount(2500)</code>, <code>ParseAmount(&quot;1000000000000000000&quot;)</code> or <code>AmountFromBig</code>, or from a decimal with a currency (below). Compare amounts with <code>Cmp</code> or <code>Sign</code>, not <code>==</code>. Exceeding 78 digits, in a leg or an account's totals, returns <code>ErrAmountOverflow</code>.</li><li><strong>Currency</strong> must be registered before any account uses it: <code>RegisterCurrency(ctx, CurrencyParams{Code: &quot;USD&quot;, Decimals: 2})</code>. Registering again with the same decimals is a no-op; different decimals return <code>ErrCurrencyConflict</code>, and the database never lets decimals change. Unregistered currencies return <code>ErrUnknownCurrency</code>.</li><li><strong>Decimal values.</strong> Anywhere you pass an amount, you can pass a decimal <code>Value</code> instead: <code>Leg{Value: &quot;5403.23&quot;}</code>, <code>CommitHoldParams{Value: &quot;12.50&quot;}</code>, <code>RefundParams{Value: &quot;12.50&quot;}</code>. It is converted with the currency's decimals (<code>5403.23</code> USD → <code>540323</code>) and never rounded: <code>5403.234</code> USD returns <code>ErrInvalidParams</code>, while <code>5403.230</code> is fine. If you set both <code>Amount</code> and <code>Value</code>, they must agree. Only amounts are stored, so a retry may use either form. To convert yourself, use <code>cur.Parse(&quot;5403.23&quot;)</code> and <code>cur.Format(amount)</code> on a <code>Currency</code> from <code>GetCurrency</code>.</li><li><strong>Transaction</strong> (<code>txn_</code>) has two or more <strong>entries</strong> (<code>ent_</code>), one per leg. Its debits must equal its credits. <code>reference</code> is the idempotency key, unique per ledger: re-posting the same reference returns the original transaction, and reusing it with different legs returns <code>ErrReferenceConflict</code>. Leg order doesn't matter for this comparison.</li><li><strong>Entry</strong> records <code>balance_after</code> and <code>account_version</code>, a gap-free per-account sequence. Entry timestamps never go backwards within an account, which makes account history and <code>BalanceAt</code> exact and cheap.</li><li><strong>External money</strong> enters and leaves through a system account, conventionally <code>@world</code>, with <code>allow_negative</code> set. Its negative balance is the total that has entered the ledger, and all balances together always sum to zero.</li><li><strong>Hold</strong> (<code>hld_</code>) reserves funds without moving them. Debits count against <code>available = balance - pending_debit</code> until the hold is <strong>committed</strong> (fully or partially; any remainder is released), <strong>voided</strong>, or it expires. Holds without <code>expires_at</code> never expire. A hold resolves exactly once: commit retries return the same transaction, and anything else (a different commit, committing after a void, or the reverse) returns <code>ErrHoldNotPending</code>. The commit transaction has no reference; it is identified by <code>hold_id</code>, so no user reference can get in its way.</li><li><strong>Refunds</strong> are new transactions with <code>refund_of</code> set. Leave the amount (and value) out to refund everything that's left; an explicit zero is an error, never "everything". Pass <code>Amount</code> for part of a two-leg transaction, or pass explicit <code>Legs</code> for a multi-leg one, which decides who gives money back. Refunds can never add up to more than the original, even when requested concurrently or from repeatable-read transactions.</li><li><strong>Account controls.</strong> <code>UpdateAccount</code> freezes an account (no debits, no new holds that debit it; it can still receive), unfreezes it, or closes it (only when its balance and pending amounts are zero; closed accounts accept nothing, and closing is final), with an optional <code>StatusReason</code>. <code>OverdraftLimit</code> lets an account without <code>AllowNegative</code> go down to minus the limit. <code>Type</code> (<code>asset</code>, <code>liability</code>, <code>equity</code>, <code>revenue</code>, <code>expense</code>) classifies an account for financial statements; it can be set once.</li><li><strong>Hold expiry.</strong> <code>HoldParams.ExpiresAt</code> makes a hold lapse: after it, commits return <code>ErrHoldExpired</code>, and <code>ExpireHolds</code> (run by <code>ledgerd</code> every minute) releases its funds and marks it <code>expired</code>.</li><li><strong>Reversals</strong> (<code>Reverse</code>) undo everything not yet refunded of a transaction, with a required reason. They're refunds underneath, so refunds and reversals together never exceed the original.</li><li><strong>Batches</strong> (<code>PostBatch</code>) post up to 1,000 transactions atomically, checking funds once on their combined effect. <strong>Exchanges</strong> (<code>Exchange</code>) are batches of two transfers in different currencies, with the rate recorded.</li><li><strong>Metadata</strong> of accounts and transactions can be updated (<code>UpdateAccount</code>, <code>UpdateTransactionMetadata</code>); keys set to <code>null</code> are removed. Nothing else about a transaction ever changes.</li><li><strong>Reports:</strong> <code>ListTransactions</code> (filter by account, date range and metadata), <code>TrialBalance</code>, <code>BalanceSheet</code>, <code>IncomeStatement</code> and <code>Statement</code>.</li><li><strong>Period close.</strong> <code>ClosePeriod(ledger, through)</code> stores the trial balance at that moment, and from then on the database refuses entries dated at or before it. Periods can't be reopened.</li><li><strong>Events.</strong> Every change writes an event in the same database transaction (<code>ListEvents</code>), so integrations never miss one or see one that didn't happen. The <code>webhook</code> package delivers them to an HTTP endpoint.</li><li><strong>Untracked accounts</strong> (<code>Untracked: true</code>, which requires <code>AllowNegative</code>) take no lock and keep no cached totals, so a busy system account like <code>@world</code> never serializes deposits. Their balance is computed from entries on read, and their entries have no <code>balance_after</code> or <code>account_version</code>. Paging their entries is safe to tail: entries from a database transaction that is still running are withheld until it ends, so nothing can appear behind a cursor. The trade-off is that any long-running transaction on the database delays new entries on untracked accounts. Reading their balance adds up their entries since the last snapshot (<code>RefreshSnapshots</code>, run by <code>ledgerd</code> every 5 minutes).</li></ul>
+<h2 id="guarantees">Guarantees</h2>
+<ul><li>Each posting locks the tracked accounts it touches (<code>SELECT … FOR NO KEY UPDATE</code>, in sorted ID order so it can't deadlock), then writes the transaction, entries and balances in one database transaction. Hold commits/voids and refunds first lock the hold or original transaction, then the accounts.</li><li>The database enforces the invariants on its own, independent of the Go code:<ul><li>ID format checks.</li><li><code>balance = credit_total - debit_total</code>.</li><li>No overdraft unless allowed, counting pending holds.</li><li>Immutable entries; for transactions, only <code>metadata</code> can change.</li><li>Holds move only from <code>pending</code> to <code>committed</code>, <code>voided</code> or <code>expired</code>, never back.</li><li>An account's currency and tracking mode can't change; its type can be set once; closing is final, and only an empty account can be closed.</li><li>Frozen accounts can't be debited and closed accounts can't take any entry.</li><li>Overdraft limits: no account goes below minus its limit.</li><li>Nothing can be posted into a closed period, and periods can't be reopened.</li><li>Batches and period closes can't be changed or deleted; events can't be changed.</li><li>A currency's decimals can be set once and never changed; currencies can't be deleted.</li><li>A deferred trigger rejects any transaction that is unbalanced or has fewer than 2 entries at COMMIT.</li><li>Entries can only be added by the database transaction that created their transaction, and must match its ledger and currency.</li></ul></li></ul>
+<h2 id="operations">Operations</h2>
+<h3 id="database-and-migrations">Database and migrations</h3>
+<p>Everything lives in the <code>ledger</code> Postgres schema, so it never collides with the host application's tables. <code>ledgerd</code> runs <code>Migrate</code> on every start; library users call <code>svc.Migrate(ctx)</code> themselves.</p>
+<ul><li>Applied versions are recorded in <code>ledger.schema_migrations</code>. Each migration commits together with its record.</li><li>A Postgres advisory lock makes concurrent <code>Migrate</code> calls (several replicas starting at once) wait their turn. If a process dies, the lock is released automatically.</li><li><code>MigrateDown</code> reverts the latest migration, for operators and tests.</li></ul>
+<p>Upgrade notes:</p>
+<ul><li><strong><code>0004</code> (amounts to <code>NUMERIC(78,0)</code>)</strong> rewrites the <code>accounts</code> and <code>entries</code> tables under an exclusive lock. On a large ledger, run it in a maintenance window. Reverting it is refused while any amount is too large for <code>BIGINT</code>.</li><li><strong><code>0005</code> (currencies)</strong> registers currencies already used by accounts, without decimals. Amounts keep working for them, but decimal values return <code>unknown_currency</code> until you register their decimals (allowed once). New accounts need a registered currency, so add a <code>RegisterCurrency</code> call to your setup. Reverting <code>0005</code> is refused once any currency has decimals registered.</li><li><strong><code>0006</code> (business features)</strong> adds account status, overdraft limits and types, hold expiry, batches, reversals, period close, events and snapshots. Everything defaults to the previous behaviour. Reverting it is refused while frozen, closed or overdraft accounts, expiring holds, batches, reversals or closed periods exist; events and snapshots are dropped.</li><li><strong>Rolling deploys across <code>0005</code>:</strong> servers still on the previous version can't register currencies. If one of them creates an account in an unregistered currency, it fails with a misleading "ledger not found" (<code>422 unknown_reference</code>). Register every currency you use right after the upgrade, before old servers are drained.</li></ul>
+<h3 id="deployment">Deployment</h3>
+<ul><li>Build a versioned binary with <code>make build VERSION=v1.2.3</code>, or an image with <code>make docker-build VERSION=v1.2.3</code>.</li><li>Logs are JSON on stdout.</li><li>On <code>SIGTERM</code> or <code>SIGINT</code>, <code>/readyz</code> starts failing, the server waits <code>LEDGER_SHUTDOWN_DRAIN</code> (if set), then stops accepting connections and lets in-flight requests finish (up to 15 seconds).</li><li>The token in <code>LEDGER_API_TOKEN</code> grants full access. Keep it in a secret store, and put TLS in front of the service (a load balancer or reverse proxy); <code>ledgerd</code> itself serves plain HTTP.</li><li><strong>Health checks:</strong> point liveness probes at <code>/healthz</code> and readiness probes at <code>/readyz</code>. Readiness fails while the database is unreachable, while the schema is behind the binary, and as soon as shutdown starts, so traffic drains first.</li><li><strong>Metrics:</strong> scrape <code>/metrics</code> with the bearer token. It exposes request counts and latency per route, requests in flight, and database connection pool usage.</li><li><strong>Background jobs</strong> run in every <code>ledgerd</code> replica: expiring holds and refreshing snapshots are safe to run concurrently, and webhook delivery uses a database lock so only one replica delivers at a time.</li></ul>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<div class="table"><table><thead><tr><th>Symptom</th><th>Cause and fix</th></tr></thead><tbody><tr><td><code>address :7710 is already in use by another program</code></td><td>Another process holds the port. Find it with <code>lsof -nP -iTCP:7710 -sTCP:LISTEN</code>, or pick a free port with <code>LEDGER_ADDR=:7711</code>.</td></tr><tr><td><code>connect to database: …</code></td><td>Check <code>LEDGER_DATABASE_URL</code>: host, port, user, database name, and <code>sslmode</code>. The database must exist (<code>createdb ledger</code>). From Docker, use <code>host.docker.internal</code> instead of <code>localhost</code>.</td></tr><tr><td><code>LEDGER_API_TOKEN is required</code></td><td>Set a token, or <code>LEDGER_INSECURE_NO_AUTH=true</code> if a proxy authenticates requests.</td></tr><tr><td><code>422 unknown_currency</code> when creating an account</td><td>Register the currency first: <code>POST /currencies</code>.</td></tr><tr><td><code>422 unknown_currency</code> when sending <code>value</code></td><td>The currency predates migration <code>0005</code>; register its decimals once with <code>POST /currencies</code>.</td></tr><tr><td>Requests return <code>503</code> under load</td><td>Many requests are contending for the same account. Retry with the same reference; consider making system accounts <code>untracked</code>.</td></tr></tbody></table></div>
+<h2 id="development">Development</h2>
+<figure class="code"><figcaption><span>shell</span><button type="button" class="copy">Copy</button></figcaption><pre><code class="language-bash">make help        # list targets
+make check       # gofmt, go vet, and all tests with the race detector
+make test        # tests only (about 40s)
+make build       # bin/ledgerd</code></pre></figure>
+<p>Tests start an embedded Postgres (downloaded once, cached in <code>~/.embedded-postgres-go</code>). To use a local server instead, where each test gets its own throwaway database:</p>
+<figure class="code"><figcaption><span>shell</span><button type="button" class="copy">Copy</button></figcaption><pre><code class="language-bash">LEDGER_TEST_DATABASE_URL=&quot;postgres://postgres@localhost:5432/postgres?sslmode=disable&quot; go test -race ./...</code></pre></figure>
+<h3 id="project-layout">Project layout</h3>
+<div class="table"><table><thead><tr><th>Path</th><th>Contents</th></tr></thead><tbody><tr><td><code>*.go</code> (root)</td><td>The <code>ledger</code> library: accounts, posting, holds, refunds, currencies, amounts, queries</td></tr><tr><td><code>migrations/</code></td><td>SQL migrations, embedded in the binary</td></tr><tr><td><code>httpapi/</code></td><td>The HTTP API (optional; wraps <code>ledger.Service</code>)</td></tr><tr><td><code>cmd/ledgerd/</code></td><td>The standalone service</td></tr><tr><td><code>ledgertest/</code></td><td>Test helpers for this package and for applications embedding it</td></tr><tr><td><code>webhook/</code></td><td>Delivers events to an HTTP endpoint, signed and in order</td></tr><tr><td><code>docs/</code></td><td>Guides, the OpenAPI specification (<code>openapi.yaml</code>), and the GitHub Pages site (<code>index.html</code>, <code>api.html</code>)</td></tr><tr><td><code>tools/site/</code></td><td>Builds <code>docs/index.html</code> from this README: <code>make site</code></td></tr><tr><td><code>LICENSE</code>, <code>NOTICE</code></td><td>The Apache License 2.0 and the copyright notice</td></tr><tr><td><code>AUTHORS</code></td><td>The project's contributors</td></tr></tbody></table></div>
+<h2 id="contributors">Contributors</h2>
+<p>ledger is maintained by <a href="https://github.com/otyang" target="_blank" rel="noopener">otyang</a>. Everyone who has contributed is listed in the <a href="https://github.com/otyang/ledger/blob/main/AUTHORS" target="_blank" rel="noopener">AUTHORS</a> file and in the <a href="https://github.com/otyang/ledger/graphs/contributors" target="_blank" rel="noopener">git history</a>.</p>
+<p>Contributions are welcome. Before opening a pull request, run <code>make check</code> (formatting, vet, and all tests with the race detector) and add tests for new behaviour. Add your name or GitHub handle to <a href="https://github.com/otyang/ledger/blob/main/AUTHORS" target="_blank" rel="noopener">AUTHORS</a> in your first pull request; no email is needed.</p>
+<p>By contributing, you agree that your contributions are licensed under the Apache License 2.0, like the rest of the project.</p>
+<h2 id="license">License</h2>
+<p>Copyright 2026 The ledger Authors.</p>
+<p>Licensed under the <a href="https://github.com/otyang/ledger/blob/main/LICENSE" target="_blank" rel="noopener">Apache License, Version 2.0</a>. You may use, modify and distribute this software, including in commercial products, provided you keep the license and the <a href="https://github.com/otyang/ledger/blob/main/NOTICE" target="_blank" rel="noopener">NOTICE</a> file. It is provided "as is", without warranties of any kind.</p>
+  </main>
+</div>
+
+<footer class="page-foot">
+  <span>Copyright 2026 The ledger Authors · Apache License 2.0</span>
+  <a href="https://github.com/otyang/ledger" target="_blank" rel="noopener">github.com/otyang/ledger</a>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+(function () {
+  if (window.hljs) {
+    document.querySelectorAll("pre code").forEach(function (el) {
+      try { window.hljs.highlightElement(el); } catch (e) { /* plain text is fine */ }
+    });
+  }
+
+  function copyText(button, text) {
+    function done() {
+      button.textContent = "Copied";
+      button.setAttribute("data-done", "");
+      setTimeout(function () { button.textContent = "Copy"; button.removeAttribute("data-done"); }, 1600);
+    }
+    function selectFallback(node) {
+      var range = document.createRange();
+      range.selectNodeContents(node);
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      button.textContent = "Selected";
+      setTimeout(function () { button.textContent = "Copy"; }, 1600);
+    }
+    var node = button.__target;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { selectFallback(node); });
+    } else {
+      selectFallback(node);
+    }
+  }
+
+  document.querySelectorAll(".copy").forEach(function (button) {
+    var target = button.dataset.copy
+      ? document.getElementById(button.dataset.copy)
+      : button.closest(".code").querySelector("code");
+    button.__target = target;
+    button.addEventListener("click", function () { copyText(button, target.textContent); });
+  });
+
+  // Highlight the section being read in the contents column.
+  var links = {};
+  document.querySelectorAll(".toc a").forEach(function (a) { links[a.getAttribute("href").slice(1)] = a; });
+  if ("IntersectionObserver" in window) {
+    var current = null;
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting && links[entry.target.id]) {
+          if (current) current.removeAttribute("aria-current");
+          current = links[entry.target.id];
+          current.setAttribute("aria-current", "true");
+        }
+      });
+    }, { rootMargin: "0px 0px -70% 0px" });
+    document.querySelectorAll(".doc h2[id]").forEach(function (h) { observer.observe(h); });
+  }
+})();
+</script>
+</body>
+</html>

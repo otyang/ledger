@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="A double-entry ledger for Go and PostgreSQL: exact amounts, safe retries, holds, refunds, reports and webhooks. Use it as a library or run it as a service.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231d5a9e'/%3E%3Cpath d='M8 9h16M8 16h16M8 23h16M16 6v20' stroke='white' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E">
+<!-- Generated from README.md by tools/site/build.py. Edit the README or the template, then run `make site`. -->
+<title>ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+html, body { margin: 0; }
+img { max-width: 100%; }
+/* Layout: a ledger book. Sticky contents column on the left, the README as one
+   readable column on the right; tables and code may run wider than the prose. */
+:root {
+  --paper: #f5f7f8;
+  --sheet: #ffffff;
+  --ink: #14202a;
+  --muted: #566774;
+  --rule: #d5dde3;
+  --rule-strong: #b8c4cc;
+  --accent: #1d5a9e;
+  --accent-soft: #e3ecf6;
+  --code-bg: #eef2f4;
+  --debit: #a63d2b;
+  --credit: #2a7148;
+  --hl-key: #7a3e9d;
+  --hl-str: #2a7148;
+  --hl-num: #a0561c;
+  --hl-com: #7b8a95;
+  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --font-body: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --step--1: 0.8125rem;
+  --step-0: 0.9688rem;
+  --step-1: 1.1875rem;
+  --step-2: 1.5rem;
+  --step-3: 2.125rem;
+  --step-4: 3.25rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0e151b; --sheet: #131c23; --ink: #e2e9ee; --muted: #93a2ae; --rule: #24313b; --rule-strong: #34444f;
+    --accent: #7cb0ea; --accent-soft: #1a2a3b; --code-bg: #17222b; --debit: #e48470; --credit: #6fc596;
+    --hl-key: #c79be8; --hl-str: #8fd3a8; --hl-num: #e8b07c; --hl-com: #7d8e9a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0e151b; --sheet: #131c23; --ink: #e2e9ee; --muted: #93a2ae; --rule: #24313b; --rule-strong: #34444f;
+  --accent: #7cb0ea; --accent-soft: #1a2a3b; --code-bg: #17222b; --debit: #e48470; --credit: #6fc596;
+  --hl-key: #c79be8; --hl-str: #8fd3a8; --hl-num: #e8b07c; --hl-com: #7d8e9a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 var(--step-0)/1.65 var(--font-body);
+  padding-inline: 16px;
+  padding-block: 0 4rem;
+}
+a { color: var(--accent); text-underline-offset: 2px; text-decoration-thickness: 1px; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+/* Header */
+.masthead {
+  max-width: 76rem;
+  margin: 0 auto;
+  padding-block: 3rem 2.5rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 3rem;
+  align-items: center;
+  border-bottom: 1px solid var(--rule);
+}
+.eyebrow {
+  font: 500 var(--step--1)/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: flex; flex-wrap: wrap; gap: 0.5rem 1rem;
+}
+.masthead h1 {
+  font: 700 var(--step-4)/1 var(--font-display);
+  letter-spacing: -0.01em;
+  margin: 0.9rem 0 0.75rem;
+}
+.lede { font-size: var(--step-1); line-height: 1.5; color: var(--muted); max-width: 36rem; margin: 0 0 1.5rem; text-wrap: pretty; }
+.lede strong { color: var(--ink); font-weight: 500; }
+.install {
+  display: inline-flex; align-items: center; gap: 0.75rem; max-width: 100%;
+  font: 400 var(--step--1)/1 var(--font-mono);
+  background: var(--sheet); border: 1px solid var(--rule-strong); border-radius: 6px;
+  padding: 0.6rem 0.6rem 0.6rem 0.9rem;
+}
+.site-nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; margin: 0 0 1.25rem; font-weight: 500; }
+.site-nav a { text-decoration: none; }
+.site-nav a:hover { text-decoration: underline; }
+.install code { overflow-x: auto; white-space: nowrap; }
+.install .copy { position: static; }
+
+/* The journal entry: the README's own deposit, as a book-keeper would write it. */
+.journal {
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 1.25rem 1.25rem 1rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+}
+.journal-head { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; font: 500 var(--step--1)/1.3 var(--font-mono); color: var(--muted); margin-bottom: 0.75rem; }
+.journal table { width: 100%; border-collapse: collapse; font-size: var(--step-0); }
+.journal th { font: 600 var(--step--1)/1 var(--font-display); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); text-align: left; padding: 0 0 0.5rem; border-bottom: 2px solid var(--ink); }
+.journal th.num, .journal td.num { text-align: right; }
+.journal td { padding: 0.55rem 0; border-bottom: 1px solid var(--rule); font-family: var(--font-mono); font-size: var(--step--1); }
+.journal td.debit { color: var(--debit); }
+.journal td.credit { color: var(--credit); }
+.journal tr.total td { border-bottom: 3px double var(--ink); font-weight: 500; color: var(--ink); }
+.journal-foot { margin: 0.75rem 0 0; font-size: var(--step--1); color: var(--muted); line-height: 1.5; }
+.balanced { color: var(--credit); font-weight: 600; }
+
+/* Body: contents column + document */
+.layout {
+  max-width: 76rem;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 13.5rem minmax(0, 1fr);
+  gap: 3.5rem;
+  padding-top: 2.5rem;
+}
+.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 1.5rem); align-self: start; }
+.toc h2 { font: 600 var(--step--1)/1 var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 0.75rem; }
+.toc ol { list-style: none; margin: 0; padding: 0; border-left: 1px solid var(--rule); counter-reset: none; }
+.toc a { display: block; padding: 0.3rem 0 0.3rem 0.9rem; margin-left: -1px; border-left: 2px solid transparent; color: var(--muted); text-decoration: none; font-size: var(--step--1); line-height: 1.35; }
+.toc a:hover { color: var(--ink); }
+.toc a[aria-current="true"] { color: var(--accent); border-left-color: var(--accent); font-weight: 500; }
+
+.doc { min-width: 0; max-width: 54rem; }
+.doc > p, .doc > ul, .doc li { max-width: 46rem; }
+.doc h2 {
+  font: 600 var(--step-3)/1.15 var(--font-display);
+  letter-spacing: -0.005em;
+  margin: 3.5rem 0 1rem;
+  padding-top: 1.25rem;
+  border-top: 2px solid var(--ink);
+  text-wrap: balance;
+  scroll-margin-top: 1.5rem;
+}
+.doc h2:first-child { margin-top: 0; }
+.doc h3 { font: 600 var(--step-2)/1.2 var(--font-display); margin: 2.5rem 0 0.75rem; text-wrap: balance; scroll-margin-top: 1.5rem; }
+.doc h4 { font: 600 var(--step-1)/1.3 var(--font-display); margin: 2rem 0 0.5rem; scroll-margin-top: 1.5rem; }
+.doc p { margin: 0 0 1rem; text-wrap: pretty; }
+.doc ul { margin: 0 0 1.25rem; padding-left: 1.25rem; }
+.doc li { margin-bottom: 0.45rem; }
+.doc li::marker { color: var(--rule-strong); }
+.doc li > ul { margin: 0.4rem 0 0.2rem; }
+.doc strong { font-weight: 600; }
+.doc :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  background: var(--code-bg);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  overflow-wrap: anywhere;
+}
+
+/* Tables read like ledger pages: ruled rows, a heavy rule under the header. */
+.table { overflow-x: auto; margin: 0 0 1.5rem; border: 1px solid var(--rule); border-radius: 6px; background: var(--sheet); }
+.table table { width: 100%; border-collapse: collapse; font-size: var(--step--1); line-height: 1.5; font-variant-numeric: tabular-nums; }
+.table th { font: 600 var(--step--1)/1.3 var(--font-display); text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); text-align: left; padding: 0.7rem 0.9rem; border-bottom: 2px solid var(--rule-strong); white-space: nowrap; }
+.table td { padding: 0.6rem 0.9rem; border-top: 1px solid var(--rule); vertical-align: top; }
+.table tbody tr:first-child td { border-top: 0; }
+.table td:first-child { white-space: nowrap; }
+.table td code { white-space: nowrap; overflow-wrap: normal; }
+
+/* Code */
+.code { margin: 0 0 1.5rem; border: 1px solid var(--rule); border-radius: 6px; background: var(--code-bg); min-width: 0; }
+.code figcaption { display: flex; justify-content: space-between; align-items: center; padding: 0.35rem 0.5rem 0.35rem 0.9rem; border-bottom: 1px solid var(--rule); font: 500 0.75rem/1 var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.code pre { margin: 0; padding: 0.9rem; overflow-x: auto; }
+.code code { font: 400 var(--step--1)/1.6 var(--font-mono); color: var(--ink); tab-size: 4; }
+.copy {
+  font: 500 0.75rem/1 var(--font-body); letter-spacing: 0.02em; text-transform: none;
+  color: var(--ink); background: var(--sheet); border: 1px solid var(--rule-strong); border-radius: 4px;
+  padding: 0.35rem 0.6rem; cursor: pointer;
+}
+.copy:hover { border-color: var(--accent); color: var(--accent); }
+.copy[data-done] { color: var(--credit); border-color: var(--credit); }
+
+/* Syntax colours from the theme tokens, so both themes stay readable. */
+.hljs-keyword, .hljs-built_in, .hljs-selector-tag, .hljs-section { color: var(--hl-key); }
+.hljs-string, .hljs-attr + .hljs-string { color: var(--hl-str); }
+.hljs-number, .hljs-literal { color: var(--hl-num); }
+.hljs-comment { color: var(--hl-com); font-style: italic; }
+.hljs-attr, .hljs-attribute, .hljs-variable, .hljs-template-variable { color: var(--accent); }
+.hljs-title, .hljs-title.function_ { color: var(--ink); font-weight: 500; }
+.hljs-meta { color: var(--muted); }
+
+footer.page-foot { max-width: 76rem; margin: 4rem auto 0; padding-top: 1.25rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: var(--step--1); display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; justify-content: space-between; }
+
+@media (max-width: 960px) {
+  .masthead { grid-template-columns: minmax(0, 1fr); gap: 2rem; padding-block: 2rem 2rem; }
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; padding-top: 1.5rem; }
+  .toc { position: static; }
+  .toc ol { border-left: 0; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .toc a { border: 1px solid var(--rule); border-radius: 999px; padding: 0.3rem 0.75rem; margin: 0; background: var(--sheet); }
+  .toc a[aria-current="true"] { border-color: var(--accent); }
+}
+@media (max-width: 520px) {
+  :root { --step-4: 2.5rem; --step-3: 1.75rem; --step-2: 1.3rem; }
+  .journal td, .journal th { font-size: 0.75rem; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+  .copy, .toc a { transition: color .15s, border-color .15s; }
+}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div>
+    <div class="eyebrow"><span>Go library + HTTP service</span><span>PostgreSQL</span><span>Apache-2.0</span></div>
+    <h1>ledger</h1>
+    <p class="lede">A double-entry ledger for Go and PostgreSQL. <strong>Every transaction balances, entries never change, and amounts are exact to 78 digits</strong>, enforced by the database itself. Use it inside your application, or run it as <code>ledgerd</code>.</p>
+    <nav class="site-nav" aria-label="Site">
+      <a href="api.html">API reference</a>
+      <a href="https://github.com/otyang/ledger/blob/main/docs/guide.md">Beginner guide</a>
+      <a href="https://github.com/otyang/ledger/blob/main/docs/architecture.md">Architecture</a>
+      <a href="https://github.com/otyang/ledger">GitHub</a>
+    </nav>
+    <div class="install"><code id="install-cmd">go get github.com/otyang/ledger</code><button type="button" class="copy" data-copy="install-cmd">Copy</button></div>
+  </div>
+  <figure class="journal" aria-label="Example journal entry">
+    <div class="journal-head"><span>txn · deposit-1</span><span>USD · 2 decimals</span></div>
+    <table>
+      <thead><tr><th>Account</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead>
+      <tbody>
+        <tr><td>@world</td><td class="num debit">5,403.23</td><td class="num"></td></tr>
+        <tr><td>acc_alice</td><td class="num"></td><td class="num credit">5,403.23</td></tr>
+        <tr class="total"><td>Total</td><td class="num">5,403.23</td><td class="num">5,403.23</td></tr>
+      </tbody>
+    </table>
+    <figcaption class="journal-foot">One transaction, two entries. Stored as <code>540323</code> cents each side. Debits equal credits, so the books stay <span class="balanced">balanced</span>.</figcaption>
+  </figure>
+</header>
+
+<div class="layout">
+  <nav class="toc" aria-label="Contents">
+    <h2>Contents</h2>
+    <ol>
+{{TOC}}
+    </ol>
+  </nav>
+  <main class="doc">
+{{BODY}}
+  </main>
+</div>
+
+<footer class="page-foot">
+  <span>Copyright 2026 The ledger Authors · Apache License 2.0</span>
+  <a href="https://github.com/otyang/ledger" target="_blank" rel="noopener">github.com/otyang/ledger</a>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+(function () {
+  if (window.hljs) {
+    document.querySelectorAll("pre code").forEach(function (el) {
+      try { window.hljs.highlightElement(el); } catch (e) { /* plain text is fine */ }
+    });
+  }
+
+  function copyText(button, text) {
+    function done() {
+      button.textContent = "Copied";
+      button.setAttribute("data-done", "");
+      setTimeout(function () { button.textContent = "Copy"; button.removeAttribute("data-done"); }, 1600);
+    }
+    function selectFallback(node) {
+      var range = document.createRange();
+      range.selectNodeContents(node);
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      button.textContent = "Selected";
+      setTimeout(function () { button.textContent = "Copy"; }, 1600);
+    }
+    var node = button.__target;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { selectFallback(node); });
+    } else {
+      selectFallback(node);
+    }
+  }
+
+  document.querySelectorAll(".copy").forEach(function (button) {
+    var target = button.dataset.copy
+      ? document.getElementById(button.dataset.copy)
+      : button.closest(".code").querySelector("code");
+    button.__target = target;
+    button.addEventListener("click", function () { copyText(button, target.textContent); });
+  });
+
+  // Highlight the section being read in the contents column.
+  var links = {};
+  document.querySelectorAll(".toc a").forEach(function (a) { links[a.getAttribute("href").slice(1)] = a; });
+  if ("IntersectionObserver" in window) {
+    var current = null;
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting && links[entry.target.id]) {
+          if (current) current.removeAttribute("aria-current");
+          current = links[entry.target.id];
+          current.setAttribute("aria-current", "true");
+        }
+      });
+    }, { rootMargin: "0px 0px -70% 0px" });
+    document.querySelectorAll(".doc h2[id]").forEach(function (h) { observer.observe(h); });
+  }
+})();
+</script>
+</body>
+</html>
