@@ -18,7 +18,7 @@ info:
     **Errors** are `{"error": {"code": "...", "message": "..."}}`. Branch on `code`. A `503` (codes
     `retryable` and `timeout`) applied nothing: retry the same request.
 
-    Guides: [README](https://github.com/otyang/ledger#readme) ·
+    Guides: [Handbook](https://github.com/otyang/ledger/blob/main/docs/handbook.md) ·
     [API reference](https://github.com/otyang/ledger/blob/main/docs/api.md) ·
     [Architecture](https://github.com/otyang/ledger/blob/main/docs/architecture.md)
   license:

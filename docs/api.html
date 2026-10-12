@@ -10,15 +10,15 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
-  /* The page renders docs/openapi.yaml with Redoc, under a bar linking back to the site. */
-  :root { --bar-bg: #14202a; --bar-fg: #e2e9ee; --bar-accent: #7cb0ea; --bar-h: 52px; }
+  /* docs/openapi.yaml rendered with Scalar, under a bar linking back to the site.
+     --scalar-custom-header-height tells Scalar's sticky sidebar to sit below it. */
+  :root { --bar-bg: #14202a; --bar-fg: #e2e9ee; --bar-accent: #7cb0ea; --scalar-custom-header-height: 52px; }
   html, body { margin: 0; }
-  body { background: #ffffff; }
   .bar {
-    position: sticky; top: 0; z-index: 10;
-    height: var(--bar-h); box-sizing: border-box;
-    display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
-    padding: 0 16px;
+    position: sticky; top: 0; z-index: 100;
+    height: var(--scalar-custom-header-height); box-sizing: border-box;
+    display: flex; align-items: center; gap: 1.5rem;
+    padding: 0 16px; overflow-x: auto; white-space: nowrap;
     background: var(--bar-bg); color: var(--bar-fg);
     font: 500 14px/1 "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
   }
@@ -40,33 +40,31 @@
   <a href="https://github.com/otyang/ledger">GitHub</a>
 </header>
 <noscript><p>This page needs JavaScript. The raw specification is at <a href="openapi.yaml">openapi.yaml</a>.</p></noscript>
-<div id="redoc"></div>
-<script src="https://cdn.jsdelivr.net/npm/redoc@2.1.5/bundles/redoc.standalone.js"></script>
-<script>
-  Redoc.init("openapi.yaml", {
-    scrollYOffset: ".bar",
-    hideDownloadButton: false,
-    expandResponses: "200,201",
-    jsonSampleExpandLevel: 3,
-    sortTagsAlphabetically: false,
-    theme: {
-      colors: {
-        primary: { main: "#1d5a9e" },
-        success: { main: "#2a7148" },
-        error: { main: "#a63d2b" },
-        text: { primary: "#14202a", secondary: "#566774" },
-        border: { dark: "#b8c4cc", light: "#d5dde3" }
-      },
-      typography: {
-        fontFamily: '"IBM Plex Sans", -apple-system, "Segoe UI", sans-serif',
-        fontSize: "15px",
-        headings: { fontFamily: '"IBM Plex Sans Condensed", "Arial Narrow", sans-serif', fontWeight: "600" },
-        code: { fontFamily: '"IBM Plex Mono", ui-monospace, Menlo, monospace', fontSize: "13px" }
-      },
-      sidebar: { backgroundColor: "#f5f7f8", textColor: "#14202a", activeTextColor: "#1d5a9e" },
-      rightPanel: { backgroundColor: "#14202a" }
-    }
-  }, document.getElementById("redoc"));
+<div id="app"></div>
+<script type="module">
+  // Pinned to an exact release, so a new Scalar version can't change the page unannounced.
+  import { createApiReference } from "https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.71.0/esm.js";
+
+  createApiReference("#app", {
+    // Served next to this page, so no CORS proxy is needed.
+    url: "openapi.yaml",
+    theme: "default",
+    metaData: { title: "ledger API reference" },
+    customCss: `
+      .light-mode {
+        --scalar-color-accent: #1d5a9e;
+        --scalar-background-accent: #e3ecf6;
+      }
+      .dark-mode {
+        --scalar-color-accent: #7cb0ea;
+        --scalar-background-accent: #1a2a3b;
+      }
+      .light-mode, .dark-mode {
+        --scalar-font: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+        --scalar-font-code: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+      }
+    `,
+  });
 </script>
 </body>
 </html>

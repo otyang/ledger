@@ -1,15 +1,18 @@
-"""Builds docs/index.html, the GitHub Pages home page, from README.md.
+"""Builds docs/index.html, the GitHub Pages home page, from docs/handbook.md.
 
 Usage: python3 tools/site/build.py   (or: make site)
 
-It handles the Markdown the README uses: headings, paragraphs, lists (one
+It handles the Markdown the handbook uses: headings, paragraphs, lists (one
 level of nesting), tables, fenced code, inline code, bold, italics and links.
-Relative links point to the files on GitHub; the README's own Contents list is
-replaced by the page's sidebar.
+Relative links are resolved from the handbook's folder and point to the files
+on GitHub; the handbook's own Contents list is replaced by the page's sidebar.
 """
 import html, re, sys
 
+import os, posixpath
+
 REPO = "https://github.com/otyang/ledger/blob/main/"
+SRC_DIR = ""  # the source file's folder, relative to the repository root
 
 def slug(text):
     t = re.sub(r"<[^>]+>", "", text)
@@ -27,7 +30,7 @@ def inline(s):
     def link(m):
         text, href = m.group(1), m.group(2)
         if not href.startswith(("http", "#")):
-            href = REPO + href
+            href = REPO + posixpath.normpath(posixpath.join(SRC_DIR, href))
         ext = ' target="_blank" rel="noopener"' if href.startswith("http") else ""
         return f'<a href="{html.escape(href)}"{ext}>{text}</a>'
     s = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", link, s)
@@ -109,11 +112,12 @@ def convert(md):
 
 import os
 root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-src = sys.argv[1] if len(sys.argv) > 1 else os.path.join(root, "README.md")
+src = sys.argv[1] if len(sys.argv) > 1 else os.path.join(root, "docs", "handbook.md")
+SRC_DIR = os.path.relpath(os.path.dirname(os.path.abspath(src)), root).replace(os.sep, "/")
 template = sys.argv[2] if len(sys.argv) > 2 else os.path.join(root, "tools", "site", "template.html")
 dest = sys.argv[3] if len(sys.argv) > 3 else os.path.join(root, "docs", "index.html")
 md = open(src).read()
-# The page's contents column replaces the README's own Contents list.
+# The page's contents column replaces the handbook's own Contents list.
 md = re.sub(r"\n## Contents\n.*?(?=\n## )", "\n", md, flags=re.S)
 body, toc = convert(md)
 nav = "\n".join(f'<li><a href="#{sid}">{text}</a></li>' for sid, text in toc)

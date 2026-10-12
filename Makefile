@@ -44,7 +44,7 @@ docker-build: ## Build the Docker image (IMAGE, VERSION)
 	docker build --build-arg VERSION=$(VERSION) -t $(IMAGE):$(VERSION) .
 
 .PHONY: site
-site: ## Rebuild docs/index.html (the GitHub Pages home) from README.md
+site: ## Rebuild docs/index.html (the GitHub Pages home) from docs/handbook.md
 	python3 tools/site/build.py
 
 .PHONY: clean
